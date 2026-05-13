@@ -3,9 +3,9 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import DailyActivity
+from models import TargetTracking, Person
 from filters import apply_filters
-from sync_sheets import EMPLOYEE_COLORS
+from helpers import PERSON_COLORS, safe_int
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -18,15 +18,14 @@ def get_dashboard(
     end_date: str = Query(None),
     db: Session = Depends(get_db),
 ):
-    base = apply_filters(
-        db.query(DailyActivity),
-        DailyActivity.employee_name, DailyActivity.activity_date,
-        employee, start_date, end_date,
-    )
-    rows = base.all()
-    logger.info(f"Dashboard: {len(rows)} rows, employee={employee}, start={start_date}, end={end_date}")
+    base = db.query(TargetTracking, Person.short_name)\
+        .join(Person, TargetTracking.person_id == Person.id)\
+        .filter(TargetTracking.activity_date.isnot(None))
+    base = apply_filters(base, Person.short_name, TargetTracking.activity_date, employee, start_date, end_date)
+    results = base.all()
+    logger.info(f"Dashboard: {len(results)} rows, employee={employee}, start={start_date}, end={end_date}")
 
-    if not rows:
+    if not results:
         return {
             "kpis": {"total_connections": 0, "total_followups": 0, "total_inmails": 0,
                      "total_positive_responses": 0, "total_leads": 0, "response_rate": 0},
@@ -34,14 +33,12 @@ def get_dashboard(
             "employee_comparison": [], "key_metrics": None, "top_performers": [],
         }
 
-    total_conn = sum(r.linkedin_connections or 0 for r in rows)
-    total_fu = sum(r.linkedin_follow_ups or 0 for r in rows)
-    total_im = sum(r.linkedin_inmails or 0 for r in rows)
-    total_pr = sum(r.positive_responses or 0 for r in rows)
-    total_leads = sum(r.lead_generated or 0 for r in rows)
+    total_conn = sum(safe_int(r.linkedin_connections) for r, _ in results)
+    total_fu = sum(safe_int(r.linkedin_follow_ups) for r, _ in results)
+    total_im = sum(safe_int(r.linkedin_inmails) for r, _ in results)
+    total_pr = sum(safe_int(r.positive_responses) for r, _ in results)
+    total_leads = sum(safe_int(r.leads_generated) for r, _ in results)
     response_rate = round((total_pr / total_conn * 100), 2) if total_conn > 0 else 0
-
-    logger.info(f"KPIs: conn={total_conn} fu={total_fu} im={total_im} pr={total_pr} leads={total_leads} rate={response_rate}")
 
     kpis = {
         "total_connections": total_conn,
@@ -53,31 +50,30 @@ def get_dashboard(
     }
 
     monthly_data = {}
-    for r in rows:
+    for r, name in results:
         key = r.activity_date.strftime("%Y-%m")
         if key not in monthly_data:
             monthly_data[key] = {"month": key, "connections": 0, "follow_ups": 0, "inmails": 0, "leads": 0}
-        monthly_data[key]["connections"] += r.linkedin_connections or 0
-        monthly_data[key]["follow_ups"] += r.linkedin_follow_ups or 0
-        monthly_data[key]["inmails"] += r.linkedin_inmails or 0
-        monthly_data[key]["leads"] += r.lead_generated or 0
+        monthly_data[key]["connections"] += safe_int(r.linkedin_connections)
+        monthly_data[key]["follow_ups"] += safe_int(r.linkedin_follow_ups)
+        monthly_data[key]["inmails"] += safe_int(r.linkedin_inmails)
+        monthly_data[key]["leads"] += safe_int(r.leads_generated)
     monthly_trend = sorted(monthly_data.values(), key=lambda x: x["month"])
 
     emp_conn = {}
     emp_comp = {}
-    for r in rows:
-        name = r.employee_name
+    for r, name in results:
         if name not in emp_conn:
             emp_conn[name] = 0
             emp_comp[name] = {"employee": name, "connections": 0, "follow_ups": 0, "inmails": 0,
-                              "color": EMPLOYEE_COLORS.get(name, "#666")}
-        emp_conn[name] += r.linkedin_connections or 0
-        emp_comp[name]["connections"] += r.linkedin_connections or 0
-        emp_comp[name]["follow_ups"] += r.linkedin_follow_ups or 0
-        emp_comp[name]["inmails"] += r.linkedin_inmails or 0
+                              "color": PERSON_COLORS.get(name, "#666")}
+        emp_conn[name] += safe_int(r.linkedin_connections)
+        emp_comp[name]["connections"] += safe_int(r.linkedin_connections)
+        emp_comp[name]["follow_ups"] += safe_int(r.linkedin_follow_ups)
+        emp_comp[name]["inmails"] += safe_int(r.linkedin_inmails)
 
     connection_share = [
-        {"employee": name, "connections": val, "color": EMPLOYEE_COLORS.get(name, "#666")}
+        {"employee": name, "connections": val, "color": PERSON_COLORS.get(name, "#666")}
         for name, val in emp_conn.items()
     ]
     employee_comparison = list(emp_comp.values())
@@ -95,17 +91,16 @@ def get_dashboard(
         }
 
     perf_data = {}
-    for r in rows:
-        name = r.employee_name
+    for r, name in results:
         if name not in perf_data:
             perf_data[name] = {"leads": 0, "responses": 0, "connections": 0}
-        perf_data[name]["leads"] += r.lead_generated or 0
-        perf_data[name]["responses"] += r.positive_responses or 0
-        perf_data[name]["connections"] += r.linkedin_connections or 0
+        perf_data[name]["leads"] += safe_int(r.leads_generated)
+        perf_data[name]["responses"] += safe_int(r.positive_responses)
+        perf_data[name]["connections"] += safe_int(r.linkedin_connections)
     top_performers = sorted(
         [{"rank": 0, "employee": k, "leads": v["leads"], "responses": v["responses"],
           "connections": v["connections"],
-          "color": EMPLOYEE_COLORS.get(k, "#666")} for k, v in perf_data.items()],
+          "color": PERSON_COLORS.get(k, "#666")} for k, v in perf_data.items()],
         key=lambda x: (x["leads"], x["responses"], x["connections"]), reverse=True,
     )
     for i, p in enumerate(top_performers):

@@ -3,9 +3,9 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import DailyActivity
+from models import TargetTracking, Person
 from filters import apply_filters
-from sync_sheets import EMPLOYEE_COLORS
+from helpers import PERSON_COLORS, safe_int
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -18,32 +18,30 @@ def get_inmails(
     end_date: str = Query(None),
     db: Session = Depends(get_db),
 ):
-    base = apply_filters(
-        db.query(DailyActivity),
-        DailyActivity.employee_name, DailyActivity.activity_date,
-        employee, start_date, end_date,
-    )
-    rows = base.all()
-    logger.info(f"InMails: {len(rows)} rows")
+    base = db.query(TargetTracking, Person.short_name)\
+        .join(Person, TargetTracking.person_id == Person.id)\
+        .filter(TargetTracking.activity_date.isnot(None))
+    base = apply_filters(base, Person.short_name, TargetTracking.activity_date, employee, start_date, end_date)
+    results = base.all()
+    logger.info(f"InMails: {len(results)} rows")
 
-    if not rows:
+    if not results:
         return {
             "kpis": {"total": 0, "top_inmailer": "N/A", "highest_daily_avg": 0, "avg_im_conn_ratio": 0},
             "distribution": [], "monthly_volume": [], "metrics_table": [],
         }
 
-    total_im = sum(r.linkedin_inmails or 0 for r in rows)
-    total_conn = sum(r.linkedin_connections or 0 for r in rows)
+    total_im = sum(safe_int(r.linkedin_inmails) for r, _ in results)
+    total_conn = sum(safe_int(r.linkedin_connections) for r, _ in results)
     avg_ratio = round(total_im / max(total_conn, 1) * 100, 2)
 
     emp_data = {}
-    for r in rows:
-        name = r.employee_name
+    for r, name in results:
         if name not in emp_data:
             emp_data[name] = {"im": 0, "conn": 0, "days": set(), "active_days": 0, "peak": 0}
-        im = r.linkedin_inmails or 0
+        im = safe_int(r.linkedin_inmails)
         emp_data[name]["im"] += im
-        emp_data[name]["conn"] += r.linkedin_connections or 0
+        emp_data[name]["conn"] += safe_int(r.linkedin_connections)
         emp_data[name]["days"].add(r.activity_date)
         if im > 0:
             emp_data[name]["active_days"] += 1
@@ -59,17 +57,16 @@ def get_inmails(
     }
 
     distribution = [
-        {"employee": name, "inmails": d["im"], "color": EMPLOYEE_COLORS.get(name, "#666")}
+        {"employee": name, "inmails": d["im"], "color": PERSON_COLORS.get(name, "#666")}
         for name, d in emp_data.items()
     ]
 
     monthly = {}
-    for r in rows:
+    for r, name in results:
         key = r.activity_date.strftime("%Y-%m")
         if key not in monthly:
             monthly[key] = {"month": key}
-        emp_key = r.employee_name
-        monthly[key][emp_key] = monthly[key].get(emp_key, 0) + (r.linkedin_inmails or 0)
+        monthly[key][name] = monthly[key].get(name, 0) + safe_int(r.linkedin_inmails)
     monthly_volume = sorted(monthly.values(), key=lambda x: x["month"])
 
     metrics_table = []
@@ -80,7 +77,7 @@ def get_inmails(
         metrics_table.append({
             "employee": name, "total": d["im"], "avg_per_active_day": avg_active,
             "peak_day": d["peak"], "im_conn_ratio": im_conn,
-            "share_pct": share_pct, "color": EMPLOYEE_COLORS.get(name, "#666"),
+            "share_pct": share_pct, "color": PERSON_COLORS.get(name, "#666"),
         })
 
     return {

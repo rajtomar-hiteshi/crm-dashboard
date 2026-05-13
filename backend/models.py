@@ -1,62 +1,288 @@
-from sqlalchemy import Column, Integer, String, Date, DateTime, Float, UniqueConstraint, func
+from sqlalchemy import Column, Integer, Text, Date, DateTime, Boolean, ForeignKey
+from sqlalchemy.dialects.postgresql import JSONB
 from database import Base
 
 
-class DailyActivity(Base):
-    __tablename__ = "daily_activity"
-
-    id = Column(Integer, primary_key=True, index=True)
-    employee_name = Column(String, nullable=False, index=True)
-    activity_date = Column(Date, nullable=False, index=True)
-    linkedin_connections = Column(Integer, default=0)
-    linkedin_follow_ups = Column(Integer, default=0)
-    linkedin_inmails = Column(Integer, default=0)
-    emails = Column(Integer, default=0)
-    data_extraction = Column(Integer, default=0)
-    positive_responses = Column(Integer, default=0)
-    lead_generated = Column(Integer, default=0)
-    cold_calling = Column(Integer, default=0)
-    follow_up_calls = Column(Integer, default=0)
-    calls = Column(Integer, default=0)
-    source_file = Column(String)
-    created_at = Column(DateTime, server_default=func.now())
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
-
-    __table_args__ = (
-        UniqueConstraint("employee_name", "activity_date", name="uq_employee_date"),
-    )
+class Person(Base):
+    __tablename__ = "persons"
+    id = Column(Integer, primary_key=True)
+    full_name = Column(Text, nullable=False)
+    short_name = Column(Text)
+    email = Column(Text)
+    created_at = Column(DateTime)
 
 
-class PositiveResponseDetail(Base):
-    __tablename__ = "positive_responses_detail"
-
-    id = Column(Integer, primary_key=True, index=True)
-    employee_name = Column(String, nullable=False, index=True)
-    response_date = Column(Date, nullable=False)
-    client_name = Column(String)
-    company = Column(String)
-    location = Column(String)
-    quality = Column(String)
-    created_at = Column(DateTime, server_default=func.now())
-
-
-class LeadPipeline(Base):
-    __tablename__ = "leads_pipeline"
-
-    id = Column(Integer, primary_key=True, index=True)
-    employee_name = Column(String, nullable=False, index=True)
-    lead_date = Column(Date, nullable=False)
-    client_name = Column(String)
-    company = Column(String)
-    location = Column(String)
-    created_at = Column(DateTime, server_default=func.now())
+class SourceFile(Base):
+    __tablename__ = "source_files"
+    id = Column(Integer, primary_key=True)
+    person_id = Column(Integer, ForeignKey("persons.id"))
+    file_name = Column(Text, nullable=False)
+    drive_file_id = Column(Text)
+    file_type = Column(Text)
+    period_start = Column(Date)
+    period_end = Column(Date)
+    total_worksheets = Column(Integer)
+    ingested_at = Column(DateTime)
 
 
-class SyncLog(Base):
-    __tablename__ = "sync_log"
+class TargetTracking(Base):
+    __tablename__ = "target_tracking"
+    id = Column(Integer, primary_key=True)
+    person_id = Column(Integer, ForeignKey("persons.id"), nullable=False)
+    source_file_id = Column(Integer, ForeignKey("source_files.id"), nullable=False)
+    original_worksheet = Column(Text, nullable=False)
+    activity_date = Column(Date)
+    activity_date_raw = Column(Text)
+    linkedin_connections = Column(Text)
+    linkedin_follow_ups = Column(Text)
+    linkedin_inmails = Column(Text)
+    emails = Column(Text)
+    data_extraction = Column(Text)
+    cold_calling = Column(Text)
+    follow_up_calls = Column(Text)
+    positive_responses = Column(Text)
+    leads_generated = Column(Text)
+    calls = Column(Text)
+    comments = Column(Text)
+    team_member_name = Column(Text)
+    planned_linkedin_connections = Column(Text)
+    achieved_linkedin_connections = Column(Text)
+    planned_linkedin_follow_ups = Column(Text)
+    achieved_linkedin_follow_ups = Column(Text)
+    planned_inmails = Column(Text)
+    achieved_inmails = Column(Text)
+    planned_emails = Column(Text)
+    achieved_emails = Column(Text)
+    planned_data_extraction = Column(Text)
+    achieved_data_extraction = Column(Text)
+    planned_cold_calls = Column(Text)
+    achieved_cold_calls = Column(Text)
+    planned_follow_up_calls = Column(Text)
+    achieved_follow_up_calls = Column(Text)
+    targeted_positive_responses = Column(Text)
+    achieved_positive_responses = Column(Text)
+    pre_sales_lead_generated = Column(Text)
+    other_tasks = Column(Text)
+    created_at = Column(DateTime)
 
-    id = Column(Integer, primary_key=True, index=True)
-    sync_time = Column(DateTime, server_default=func.now())
-    status = Column(String)
-    records_updated = Column(Integer, default=0)
-    message = Column(String)
+
+class LinkedinConnection(Base):
+    __tablename__ = "linkedin_connections"
+    id = Column(Integer, primary_key=True)
+    person_id = Column(Integer, ForeignKey("persons.id"), nullable=False)
+    source_file_id = Column(Integer, ForeignKey("source_files.id"), nullable=False)
+    original_worksheet = Column(Text, nullable=False)
+    activity_date = Column(Date)
+    activity_date_raw = Column(Text)
+    lead_generation_exec = Column(Text)
+    client_linkedin_url = Column(Text)
+    linkedin_account_used = Column(Text)
+    connection_message = Column(Text)
+    geography = Column(Text)
+    company_size = Column(Text)
+    industry = Column(Text)
+    cadence_sequence = Column(Text)
+    accepted = Column(Text)
+    filter_link = Column(Text)
+    response_received = Column(Text)
+    comments = Column(Text)
+    created_at = Column(DateTime)
+
+
+class LinkedinFollowup(Base):
+    __tablename__ = "linkedin_followups"
+    id = Column(Integer, primary_key=True)
+    person_id = Column(Integer, ForeignKey("persons.id"), nullable=False)
+    source_file_id = Column(Integer, ForeignKey("source_files.id"), nullable=False)
+    original_worksheet = Column(Text, nullable=False)
+    activity_date = Column(Date)
+    activity_date_raw = Column(Text)
+    lead_generation_exec = Column(Text)
+    client_linkedin_url = Column(Text)
+    linkedin_account_used = Column(Text)
+    follow_up_type = Column(Text)
+    message_sent = Column(Text)
+    filter_value = Column("filter", Text)
+    cadence = Column(Text)
+    response_received = Column(Text)
+    created_at = Column(DateTime)
+
+
+class LinkedinInmail(Base):
+    __tablename__ = "linkedin_inmails"
+    id = Column(Integer, primary_key=True)
+    person_id = Column(Integer, ForeignKey("persons.id"), nullable=False)
+    source_file_id = Column(Integer, ForeignKey("source_files.id"), nullable=False)
+    original_worksheet = Column(Text, nullable=False)
+    activity_date = Column(Date)
+    activity_date_raw = Column(Text)
+    lead_generation_exec = Column(Text)
+    client_linkedin_url = Column(Text)
+    linkedin_account_used = Column(Text)
+    inmail_message_sent = Column(Text)
+    geography = Column(Text)
+    company_size = Column(Text)
+    industry = Column(Text)
+    filter_value = Column("filter", Text)
+    cadence = Column(Text)
+    created_at = Column(DateTime)
+
+
+class Email(Base):
+    __tablename__ = "emails"
+    id = Column(Integer, primary_key=True)
+    person_id = Column(Integer, ForeignKey("persons.id"), nullable=False)
+    source_file_id = Column(Integer, ForeignKey("source_files.id"), nullable=False)
+    original_worksheet = Column(Text, nullable=False)
+    activity_date = Column(Date)
+    activity_date_raw = Column(Text)
+    lead_generation_exec = Column(Text)
+    client_name = Column(Text)
+    client_email = Column(Text)
+    client_linkedin_url = Column(Text)
+    company_name = Column(Text)
+    email_content_sent = Column(Text)
+    opportunity_url = Column(Text)
+    contact_number = Column(Text)
+    reason = Column(Text)
+    next_step = Column(Text)
+    cadence = Column(Text)
+    client_whatsapp = Column(Text)
+    created_at = Column(DateTime)
+
+
+class PositiveResponse(Base):
+    __tablename__ = "positive_responses"
+    id = Column(Integer, primary_key=True)
+    person_id = Column(Integer, ForeignKey("persons.id"), nullable=False)
+    source_file_id = Column(Integer, ForeignKey("source_files.id"), nullable=False)
+    original_worksheet = Column(Text, nullable=False)
+    response_date = Column(Date)
+    response_date_raw = Column(Text)
+    client_type = Column(Text)
+    connected_date = Column(Text)
+    lead_established_date = Column(Text)
+    client_name = Column(Text)
+    client_linkedin_id = Column(Text)
+    linkedin_id_associated = Column(Text)
+    client_email = Column(Text)
+    client_contact_number = Column(Text)
+    first_follow_up = Column(Text)
+    num_follow_ups_taken = Column(Text)
+    num_gap_days = Column(Text)
+    response_quality = Column(Text)
+    client_first_revert = Column(Text)
+    chat_summary = Column(Text)
+    source = Column(Text)
+    created_at = Column(DateTime)
+
+
+class LeadGenerated(Base):
+    __tablename__ = "leads_generated"
+    id = Column(Integer, primary_key=True)
+    person_id = Column(Integer, ForeignKey("persons.id"), nullable=False)
+    source_file_id = Column(Integer, ForeignKey("source_files.id"), nullable=False)
+    original_worksheet = Column(Text, nullable=False)
+    inquiry_date = Column(Date)
+    inquiry_date_raw = Column(Text)
+    lead_gen_executive = Column(Text)
+    client_name = Column(Text)
+    client_location = Column(Text)
+    company_name = Column(Text)
+    company_size = Column(Text)
+    client_designation = Column(Text)
+    client_linkedin_url = Column(Text)
+    client_email = Column(Text)
+    client_contact_number = Column(Text)
+    summary = Column(Text)
+    next_step = Column(Text)
+    zoho_contact_link = Column(Text)
+    zoho_deal_link = Column(Text)
+    lead_source = Column(Text)
+    account = Column(Text)
+    assigned_consultant = Column(Text)
+    current_status = Column(Text)
+    lost_reason = Column(Text)
+    meeting_done = Column(Text)
+    prospect_qualified = Column(Text)
+    response = Column(Text)
+    status = Column(Text)
+    created_at = Column(DateTime)
+
+
+class DataExtractionRecord(Base):
+    __tablename__ = "data_extraction"
+    id = Column(Integer, primary_key=True)
+    person_id = Column(Integer, ForeignKey("persons.id"), nullable=False)
+    source_file_id = Column(Integer, ForeignKey("source_files.id"), nullable=False)
+    original_worksheet = Column(Text, nullable=False)
+    activity_date = Column(Date)
+    activity_date_raw = Column(Text)
+    extraction_time = Column(Text)
+    lead_generation_exec = Column(Text)
+    prospect_name = Column(Text)
+    prospect_company = Column(Text)
+    client_email = Column(Text)
+    client_email_2 = Column(Text)
+    client_linkedin_url = Column(Text)
+    opportunity_url = Column(Text)
+    source_of_data = Column(Text)
+    region = Column(Text)
+    designation = Column(Text)
+    industry = Column(Text)
+    contact_number = Column(Text)
+    connection_request = Column(Text)
+    email_sent = Column(Text)
+    likely_usecase = Column(Text)
+    created_at = Column(DateTime)
+
+
+class BiddetailTender(Base):
+    __tablename__ = "biddetail_tenders"
+    id = Column(Integer, primary_key=True)
+    person_id = Column(Integer, ForeignKey("persons.id"), nullable=False)
+    source_file_id = Column(Integer, ForeignKey("source_files.id"), nullable=False)
+    original_worksheet = Column(Text, nullable=False)
+    serial_no = Column(Text)
+    data_fetch_date = Column(Text)
+    contract_date = Column(Text)
+    query_name = Column(Text)
+    link_of_tender = Column(Text)
+    tender_no = Column(Text)
+    amount = Column(Text)
+    contact_person_name = Column(Text)
+    company = Column(Text)
+    contact_details = Column(Text)
+    bid_details_email = Column(Text)
+    linkedin_email = Column(Text)
+    linkedin = Column(Text)
+    created_at = Column(DateTime)
+
+
+class OtherWorksheetData(Base):
+    __tablename__ = "other_worksheet_data"
+    id = Column(Integer, primary_key=True)
+    person_id = Column(Integer, ForeignKey("persons.id"), nullable=False)
+    source_file_id = Column(Integer, ForeignKey("source_files.id"), nullable=False)
+    original_worksheet = Column(Text, nullable=False)
+    row_number = Column(Integer)
+    row_data = Column(JSONB, nullable=False)
+    created_at = Column(DateTime)
+
+
+class IngestionLog(Base):
+    __tablename__ = "ingestion_log"
+    id = Column(Integer, primary_key=True)
+    source_file_id = Column(Integer, ForeignKey("source_files.id"))
+    person_id = Column(Integer, ForeignKey("persons.id"))
+    worksheet_name = Column(Text, nullable=False)
+    target_table = Column(Text, nullable=False)
+    rows_in_sheet = Column(Integer, nullable=False)
+    rows_inserted = Column(Integer, nullable=False)
+    columns_in_sheet = Column(Integer, nullable=False)
+    columns_mapped = Column(Integer, nullable=False)
+    status = Column(Text)
+    error_message = Column(Text)
+    sample_row_check_passed = Column(Boolean)
+    numeric_checksum_passed = Column(Boolean)
+    ingested_at = Column(DateTime)

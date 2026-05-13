@@ -3,9 +3,9 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import DailyActivity, PositiveResponseDetail
+from models import TargetTracking, Person, PositiveResponse
 from filters import apply_filters
-from sync_sheets import EMPLOYEE_COLORS
+from helpers import PERSON_COLORS, safe_int
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -18,24 +18,21 @@ def get_positive_responses(
     end_date: str = Query(None),
     db: Session = Depends(get_db),
 ):
-    base = apply_filters(
-        db.query(DailyActivity),
-        DailyActivity.employee_name, DailyActivity.activity_date,
-        employee, start_date, end_date,
-    )
-    rows = base.all()
-    logger.info(f"PositiveResponses: {len(rows)} rows from daily_activity")
+    base = db.query(TargetTracking, Person.short_name)\
+        .join(Person, TargetTracking.person_id == Person.id)\
+        .filter(TargetTracking.activity_date.isnot(None))
+    base = apply_filters(base, Person.short_name, TargetTracking.activity_date, employee, start_date, end_date)
+    results = base.all()
+    logger.info(f"PositiveResponses: {len(results)} rows from target_tracking")
 
-    detail_query = apply_filters(
-        db.query(PositiveResponseDetail),
-        PositiveResponseDetail.employee_name, PositiveResponseDetail.response_date,
-        employee, start_date, end_date,
-    )
-    details = detail_query.order_by(PositiveResponseDetail.response_date.desc()).all()
-    has_detail_data = len(details) > 0
-    logger.info(f"PositiveResponses: {len(details)} detail records, has_detail={has_detail_data}")
+    detail_base = db.query(PositiveResponse, Person.short_name)\
+        .join(Person, PositiveResponse.person_id == Person.id)
+    detail_base = apply_filters(detail_base, Person.short_name, PositiveResponse.response_date, employee, start_date, end_date)
+    detail_results = detail_base.order_by(PositiveResponse.response_date.desc()).all()
+    has_detail_data = len(detail_results) > 0
+    logger.info(f"PositiveResponses: {len(detail_results)} detail records")
 
-    if not rows:
+    if not results:
         return {
             "kpis": {"total": 0, "high_quality": 0, "generic_interest": 0,
                      "best_rate_employee": "N/A", "best_rate": 0},
@@ -43,15 +40,14 @@ def get_positive_responses(
             "monthly_trend": [], "recent_responses": [], "has_detail_data": False,
         }
 
-    total_pr = sum(r.positive_responses or 0 for r in rows)
+    total_pr = sum(safe_int(r.positive_responses) for r, _ in results)
 
     emp_data = {}
-    for r in rows:
-        name = r.employee_name
+    for r, name in results:
         if name not in emp_data:
             emp_data[name] = {"pr": 0, "conn": 0}
-        emp_data[name]["pr"] += r.positive_responses or 0
-        emp_data[name]["conn"] += r.linkedin_connections or 0
+        emp_data[name]["pr"] += safe_int(r.positive_responses)
+        emp_data[name]["conn"] += safe_int(r.linkedin_connections)
 
     best_rate_emp = "N/A"
     best_rate = 0
@@ -60,16 +56,15 @@ def get_positive_responses(
         best_rate = round(emp_data[best_rate_emp]["pr"] / max(emp_data[best_rate_emp]["conn"], 1) * 100, 2)
 
     if has_detail_data:
-        hq_count = sum(1 for d in details if d.quality and "high" in d.quality.lower())
-        gi_count = sum(1 for d in details if d.quality and "generic" in d.quality.lower())
+        hq_count = sum(1 for d, _ in detail_results if d.response_quality and "high" in d.response_quality.lower())
+        gi_count = sum(1 for d, _ in detail_results if d.response_quality and "generic" in d.response_quality.lower())
         pr_count = total_pr - hq_count - gi_count
 
         emp_quality = {}
-        for d in details:
-            name = d.employee_name
+        for d, name in detail_results:
             if name not in emp_quality:
                 emp_quality[name] = {"high_quality": 0, "positive_response": 0, "generic_interest": 0}
-            q = (d.quality or "").lower()
+            q = (d.response_quality or "").lower()
             if "high" in q:
                 emp_quality[name]["high_quality"] += 1
             elif "generic" in q:
@@ -82,7 +77,7 @@ def get_positive_responses(
             eq = emp_quality.get(name, {"high_quality": 0, "positive_response": 0, "generic_interest": 0})
             by_employee_stacked.append({
                 "employee": name, **eq,
-                "color": EMPLOYEE_COLORS.get(name, "#666"),
+                "color": PERSON_COLORS.get(name, "#666"),
             })
 
         quality_distribution = [
@@ -95,12 +90,12 @@ def get_positive_responses(
             {
                 "date": d.response_date.isoformat() if d.response_date else "",
                 "client_name": d.client_name or "",
-                "company": d.company or "",
-                "location": d.location or "",
-                "quality": d.quality or "Positive Response",
-                "employee": d.employee_name,
+                "company": "",
+                "location": "",
+                "quality": d.response_quality or "Positive Response",
+                "employee": name,
             }
-            for d in details[:20]
+            for d, name in detail_results[:20]
         ]
     else:
         hq_count = 0
@@ -110,7 +105,7 @@ def get_positive_responses(
             {
                 "employee": name, "high_quality": 0,
                 "positive_response": d["pr"], "generic_interest": 0,
-                "color": EMPLOYEE_COLORS.get(name, "#666"),
+                "color": PERSON_COLORS.get(name, "#666"),
             }
             for name, d in emp_data.items()
         ]
@@ -120,18 +115,6 @@ def get_positive_responses(
         ]
 
         recent_responses = []
-        for r in sorted(rows, key=lambda x: x.activity_date, reverse=True):
-            if r.positive_responses and r.positive_responses > 0:
-                recent_responses.append({
-                    "date": r.activity_date.isoformat(),
-                    "client_name": "",
-                    "company": "",
-                    "location": "",
-                    "quality": "Positive Response",
-                    "employee": r.employee_name,
-                })
-            if len(recent_responses) >= 20:
-                break
 
     kpis = {
         "total": total_pr, "high_quality": hq_count,
@@ -140,12 +123,12 @@ def get_positive_responses(
     }
 
     monthly = {}
-    for r in rows:
+    for r, name in results:
         key = r.activity_date.strftime("%Y-%m")
         if key not in monthly:
             monthly[key] = {"month": key, "positive_responses": 0, "leads": 0}
-        monthly[key]["positive_responses"] += r.positive_responses or 0
-        monthly[key]["leads"] += r.lead_generated or 0
+        monthly[key]["positive_responses"] += safe_int(r.positive_responses)
+        monthly[key]["leads"] += safe_int(r.leads_generated)
     monthly_trend = sorted(monthly.values(), key=lambda x: x["month"])
 
     return {

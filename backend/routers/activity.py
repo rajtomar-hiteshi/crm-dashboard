@@ -3,9 +3,9 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import DailyActivity
+from models import TargetTracking, Person
 from filters import apply_filters
-from sync_sheets import EMPLOYEE_COLORS
+from helpers import PERSON_COLORS, safe_int
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -18,50 +18,48 @@ def get_activity(
     end_date: str = Query(None),
     db: Session = Depends(get_db),
 ):
-    base = apply_filters(
-        db.query(DailyActivity),
-        DailyActivity.employee_name, DailyActivity.activity_date,
-        employee, start_date, end_date,
-    )
-    rows = base.order_by(DailyActivity.activity_date).all()
-    logger.info(f"Activity: {len(rows)} rows")
+    base = db.query(TargetTracking, Person.short_name)\
+        .join(Person, TargetTracking.person_id == Person.id)\
+        .filter(TargetTracking.activity_date.isnot(None))
+    base = apply_filters(base, Person.short_name, TargetTracking.activity_date, employee, start_date, end_date)
+    results = base.order_by(TargetTracking.activity_date).all()
+    logger.info(f"Activity: {len(results)} rows")
 
-    if not rows:
+    if not results:
         return {
             "daily_volume": [], "monthly_breakdown": [],
             "daily_averages": [], "summary_table": [],
         }
 
     daily_map = {}
-    for r in rows:
+    for r, name in results:
         key = r.activity_date.isoformat()
         if key not in daily_map:
             daily_map[key] = {"date": key, "connections": 0, "follow_ups": 0, "inmails": 0}
-        daily_map[key]["connections"] += r.linkedin_connections or 0
-        daily_map[key]["follow_ups"] += r.linkedin_follow_ups or 0
-        daily_map[key]["inmails"] += r.linkedin_inmails or 0
+        daily_map[key]["connections"] += safe_int(r.linkedin_connections)
+        daily_map[key]["follow_ups"] += safe_int(r.linkedin_follow_ups)
+        daily_map[key]["inmails"] += safe_int(r.linkedin_inmails)
     daily_volume = sorted(daily_map.values(), key=lambda x: x["date"])
 
     monthly = {}
-    for r in rows:
+    for r, name in results:
         key = r.activity_date.strftime("%Y-%m")
         if key not in monthly:
             monthly[key] = {"month": key, "connections": 0, "follow_ups": 0, "inmails": 0, "leads": 0}
-        monthly[key]["connections"] += r.linkedin_connections or 0
-        monthly[key]["follow_ups"] += r.linkedin_follow_ups or 0
-        monthly[key]["inmails"] += r.linkedin_inmails or 0
-        monthly[key]["leads"] += r.lead_generated or 0
+        monthly[key]["connections"] += safe_int(r.linkedin_connections)
+        monthly[key]["follow_ups"] += safe_int(r.linkedin_follow_ups)
+        monthly[key]["inmails"] += safe_int(r.linkedin_inmails)
+        monthly[key]["leads"] += safe_int(r.leads_generated)
     monthly_breakdown = sorted(monthly.values(), key=lambda x: x["month"])
 
     emp_data = {}
-    for r in rows:
-        name = r.employee_name
+    for r, name in results:
         if name not in emp_data:
             emp_data[name] = {"conn": 0, "fu": 0, "im": 0, "leads": 0, "dates": set()}
-        emp_data[name]["conn"] += r.linkedin_connections or 0
-        emp_data[name]["fu"] += r.linkedin_follow_ups or 0
-        emp_data[name]["im"] += r.linkedin_inmails or 0
-        emp_data[name]["leads"] += r.lead_generated or 0
+        emp_data[name]["conn"] += safe_int(r.linkedin_connections)
+        emp_data[name]["fu"] += safe_int(r.linkedin_follow_ups)
+        emp_data[name]["im"] += safe_int(r.linkedin_inmails)
+        emp_data[name]["leads"] += safe_int(r.leads_generated)
         emp_data[name]["dates"].add(r.activity_date)
 
     daily_averages = [
@@ -69,7 +67,7 @@ def get_activity(
             "employee": name,
             "avg_connections": round(d["conn"] / max(len(d["dates"]), 1), 1),
             "avg_follow_ups": round(d["fu"] / max(len(d["dates"]), 1), 1),
-            "color": EMPLOYEE_COLORS.get(name, "#666"),
+            "color": PERSON_COLORS.get(name, "#666"),
         }
         for name, d in emp_data.items()
     ]
@@ -88,7 +86,7 @@ def get_activity(
             "leads": d["leads"],
             "avg_conn_per_day": round(d["conn"] / max(active, 1), 1),
             "efficiency": efficiency,
-            "color": EMPLOYEE_COLORS.get(name, "#666"),
+            "color": PERSON_COLORS.get(name, "#666"),
         })
 
     return {

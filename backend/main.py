@@ -5,12 +5,9 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from database import engine, Base
 from routers import dashboard, connections, followups, inmails, positive_responses, leads, activity, sync
 
-Base.metadata.create_all(bind=engine)
-
-app = FastAPI(title="Lead Gen CRM API", version="1.0.0")
+app = FastAPI(title="Lead Gen CRM API", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -32,4 +29,4 @@ app.include_router(sync.router, prefix="/api")
 
 @app.get("/")
 def root():
-    return {"status": "running", "app": "Lead Gen CRM API", "version": "1.0.0"}
+    return {"status": "running", "app": "Lead Gen CRM API", "version": "2.0.0"}

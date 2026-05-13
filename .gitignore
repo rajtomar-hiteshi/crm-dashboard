@@ -1,0 +1,28 @@
+# Dependencies
+frontend/node_modules/
+__pycache__/
+*.pyc
+
+# Environment
+.env
+*.pem
+
+# Secrets
+credentials.json
+
+# Build
+frontend/dist/
+
+# IDE
+.vscode/
+.idea/
+
+# Virtual environment
+venv/
+
+# Data files
+csv/
+
+# OS
+.DS_Store
+Thumbs.db

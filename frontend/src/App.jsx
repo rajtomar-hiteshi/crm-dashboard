@@ -1,0 +1,97 @@
+import { useState, useEffect, useCallback } from 'react'
+import { Routes, Route, Navigate } from 'react-router-dom'
+import Sidebar from './components/Sidebar'
+import Header from './components/Header'
+import MasterDashboard from './pages/MasterDashboard'
+import ActivityTracker from './pages/ActivityTracker'
+import LinkedInConnections from './pages/LinkedInConnections'
+import FollowUps from './pages/FollowUps'
+import InMailAnalytics from './pages/InMailAnalytics'
+import PositiveResponses from './pages/PositiveResponses'
+import LeadPipeline from './pages/LeadPipeline'
+import api from './api/api'
+
+const PAGE_CONFIG = {
+  '/': { title: 'Master Dashboard', subtitle: 'Complete overview of lead generation performance' },
+  '/activity': { title: 'Activity Tracker', subtitle: 'Daily and monthly activity breakdown' },
+  '/connections': { title: 'LinkedIn Connections', subtitle: 'Connection metrics and trends' },
+  '/followups': { title: 'Follow-Ups', subtitle: 'Follow-up activity and coverage analysis' },
+  '/inmails': { title: 'InMail Analytics', subtitle: 'InMail volume and distribution insights' },
+  '/positive-responses': { title: 'Positive Responses', subtitle: 'Response quality and conversion tracking' },
+  '/leads': { title: 'Lead Pipeline', subtitle: 'Lead generation funnel and geography analysis' },
+}
+
+export default function App() {
+  const [employee, setEmployee] = useState('all')
+  const [startDate, setStartDate] = useState(null)
+  const [endDate, setEndDate] = useState(null)
+  const [employees, setEmployees] = useState([])
+  const [syncing, setSyncing] = useState(false)
+  const [currentPath, setCurrentPath] = useState('/')
+
+  useEffect(() => {
+    api.get('/api/employees').then(res => setEmployees(res.data)).catch(() => {})
+  }, [])
+
+  const handleSync = useCallback(async () => {
+    setSyncing(true)
+    try {
+      await api.post('/api/sync')
+    } catch (e) {
+      console.error('Sync failed:', e)
+    } finally {
+      setSyncing(false)
+    }
+  }, [])
+
+  const handleReset = useCallback(() => {
+    setEmployee('all')
+    setStartDate(null)
+    setEndDate(null)
+  }, [])
+
+  const handleDateChange = useCallback(({ startDate: sd, endDate: ed }) => {
+    setStartDate(sd)
+    setEndDate(ed)
+  }, [])
+
+  const handleEmployeeSelect = useCallback((name) => {
+    setEmployee(name)
+  }, [])
+
+  const pageConfig = PAGE_CONFIG[currentPath] || PAGE_CONFIG['/']
+  const filterProps = { employee, startDate, endDate, onEmployeeSelect: handleEmployeeSelect }
+
+  return (
+    <div className="flex h-screen overflow-hidden bg-surface">
+      <Sidebar onNavigate={setCurrentPath} currentPath={currentPath} />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <Header
+          title={pageConfig.title}
+          subtitle={pageConfig.subtitle}
+          employee={employee}
+          startDate={startDate}
+          endDate={endDate}
+          employees={employees}
+          onEmployeeChange={setEmployee}
+          onDateChange={handleDateChange}
+          onReset={handleReset}
+          onSync={handleSync}
+          syncing={syncing}
+        />
+        <main className="flex-1 overflow-y-auto p-6">
+          <Routes>
+            <Route path="/" element={<MasterDashboard {...filterProps} />} />
+            <Route path="/activity" element={<ActivityTracker {...filterProps} />} />
+            <Route path="/connections" element={<LinkedInConnections {...filterProps} />} />
+            <Route path="/followups" element={<FollowUps {...filterProps} />} />
+            <Route path="/inmails" element={<InMailAnalytics {...filterProps} />} />
+            <Route path="/positive-responses" element={<PositiveResponses {...filterProps} />} />
+            <Route path="/leads" element={<LeadPipeline {...filterProps} />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </main>
+      </div>
+    </div>
+  )
+}

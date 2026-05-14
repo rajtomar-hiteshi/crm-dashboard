@@ -466,7 +466,7 @@ def add_person(body: dict, db: Session = Depends(get_db)):
                     worksheet_name=ws_name, target_table=mapped_table,
                     rows_in_sheet=rows_imported, rows_inserted=rows_imported,
                     columns_in_sheet=0, columns_mapped=0,
-                    status="ok", ingested_at=datetime.now(),
+                    status="SUCCESS", ingested_at=datetime.now(),
                 ))
             except Exception as e:
                 logger.error(f"Import error {ws_name}: {e}")
@@ -479,7 +479,7 @@ def add_person(body: dict, db: Session = Depends(get_db)):
                     worksheet_name=ws_name, target_table=mapped_table,
                     rows_in_sheet=0, rows_inserted=0,
                     columns_in_sheet=0, columns_mapped=0,
-                    status="error", error_message=str(e)[:500],
+                    status="FAILED", error_message=str(e)[:500],
                     ingested_at=datetime.now(),
                 ))
 
@@ -956,7 +956,7 @@ def add_file_to_person(person_id: int, body: dict, db: Session = Depends(get_db)
                 worksheet_name=ws_name, target_table=mapped_table,
                 rows_in_sheet=rows, rows_inserted=rows,
                 columns_in_sheet=0, columns_mapped=0,
-                status="ok", ingested_at=datetime.now(),
+                status="SUCCESS", ingested_at=datetime.now(),
             ))
         except Exception as e:
             results.append({"name": ws_name, "table": mapped_table, "rows": 0, "status": "error", "error": str(e)})

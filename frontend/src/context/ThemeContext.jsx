@@ -3,8 +3,13 @@ import { createContext, useContext, useState, useEffect, useMemo } from 'react'
 const ThemeContext = createContext()
 
 export function ThemeProvider({ children }) {
-  const [mode, setMode] = useState(() => localStorage.getItem('theme-mode') || 'dark')
-  const [isDark, setIsDark] = useState(true)
+  const [mode, setMode] = useState(() => localStorage.getItem('theme-mode') || 'light')
+  const [isDark, setIsDark] = useState(() => {
+    const saved = localStorage.getItem('theme-mode')
+    if (!saved || saved === 'light') return false
+    if (saved === 'dark') return true
+    return window.matchMedia('(prefers-color-scheme: dark)').matches
+  })
 
   useEffect(() => {
     localStorage.setItem('theme-mode', mode)

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { X, ChevronRight, Calendar, Users, TrendingUp, Table2, Activity, Loader2, BarChart3, Database } from 'lucide-react'
 import { useDrilldown } from '../hooks/useApi'
 import { useFilters } from '../context/FilterContext'
+import { useTheme } from '../context/ThemeContext'
 import MultiLineChart from './charts/MultiLineChart'
 import VerticalBarChart from './charts/VerticalBarChart'
 import StackedAreaChart from './charts/StackedAreaChart'
@@ -194,6 +195,7 @@ export default function DrillDownDrawer({ isOpen, onClose, metric, title, color 
   const drawerRef = useRef(null)
   const { data, isLoading } = useDrilldown(isOpen ? metric : null)
   const { employee, setEmployee } = useFilters()
+  const { isDark } = useTheme()
 
   useEffect(() => {
     if (isOpen) setTab('data')
@@ -546,10 +548,10 @@ export default function DrillDownDrawer({ isOpen, onClose, metric, title, color 
         style={{
           width: '70vw',
           maxWidth: '70vw',
-          background: '#0f172a',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
+          background: isDark ? '#0f172a' : '#FFFFFF',
+          border: isDark ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid #E2E8F0',
           borderRadius: '20px 0 0 20px',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05)',
+          boxShadow: isDark ? '0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05)' : '0 25px 50px -12px rgba(0, 0, 0, 0.15)',
           overflow: 'hidden',
         }}
       >

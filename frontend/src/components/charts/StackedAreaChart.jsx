@@ -7,15 +7,14 @@ import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import { fmtNum, fmtChartDate } from '../../utils/formatters'
 
-/* Short "MMM D" date formatter for x-axis ticks (e.g. "Jan 9") */
-function fmtAxisDate(s) {
-  if (!s) return ''
-  const d = new Date(s)
-  if (isNaN(d)) return s
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
-
 const COLORS = ['#3B82F6', '#06B6D4', '#10B981', '#F59E0B', '#8B5CF6', '#EF4444', '#F97316']
+
+function getTickInterval(dataLength) {
+  if (dataLength <= 7) return 0
+  if (dataLength <= 14) return 1
+  if (dataLength <= 30) return Math.ceil(dataLength / 7) - 1
+  return Math.ceil(dataLength / 10) - 1
+}
 
 export default function StackedAreaChart({ data, areas, xKey = 'date', height = 300, zoomable = false }) {
   const { chartColors } = useTheme()
@@ -69,6 +68,8 @@ export default function StackedAreaChart({ data, areas, xKey = 'date', height = 
     )
   }
 
+  const tickInterval = xKey === 'date' ? getTickInterval(data.length) : 0
+
   return (
     <div>
       {zoomable && (
@@ -92,8 +93,8 @@ export default function StackedAreaChart({ data, areas, xKey = 'date', height = 
             stroke={chartColors.axis}
             fontSize={11}
             tickLine={false}
-            tickFormatter={xKey === 'date' ? fmtAxisDate : undefined}
-            interval={xKey === 'date' && data.length > 14 ? 13 : 0}
+            tickFormatter={xKey === 'date' ? fmtChartDate : undefined}
+            interval={tickInterval}
             angle={-45}
             textAnchor="end"
             dy={10}

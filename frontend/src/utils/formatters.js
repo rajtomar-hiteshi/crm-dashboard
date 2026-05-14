@@ -17,7 +17,7 @@ export function fmtMonth(s) {
   if (!s) return ''
   const d = new Date(s + '-01')
   if (isNaN(d)) return s
-  return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
+  return d.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' })
 }
 
 export function fmtChartDate(s) {
@@ -25,4 +25,11 @@ export function fmtChartDate(s) {
   const d = new Date(s)
   if (isNaN(d)) return s
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+}
+
+export function fmtChartMonth(s) {
+  if (!s) return ''
+  const d = new Date(s + '-01')
+  if (isNaN(d)) return s
+  return d.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' })
 }

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { Zap, Mail, Lock, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
@@ -112,14 +112,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="mt-5 text-center">
-            <Link
-              to="/forgot-password"
-              className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
-            >
-              Forgot Password?
-            </Link>
-          </div>
         </div>
 
         <p className={`mt-6 text-center text-xs ${isDark ? 'text-[#475569]' : 'text-[#94A3B8]'}`}>Hiteshi CRM v1.0 &middot; Hiteshi Infotech</p>

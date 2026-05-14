@@ -199,7 +199,7 @@ export default function DrillDownDrawer({ isOpen, onClose, metric, title, color 
   const { isDark } = useTheme()
 
   useEffect(() => {
-    if (isOpen) { setTab('data'); setDateFilter(null) }
+    if (isOpen) { setTab('overview'); setDateFilter(null) }
   }, [isOpen, metric])
 
   useEffect(() => {

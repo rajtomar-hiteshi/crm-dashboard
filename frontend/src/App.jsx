@@ -1,9 +1,13 @@
 import { useState, useCallback } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
+import { useAuth } from './context/AuthContext'
 import Sidebar from './components/Sidebar'
 import Header from './components/Header'
 import SyncResultModal from './components/SyncResultModal'
+import LoginPage from './pages/LoginPage'
+import ForgotPasswordPage from './pages/ForgotPasswordPage'
+import ResetPasswordPage from './pages/ResetPasswordPage'
 import MasterDashboard from './pages/MasterDashboard'
 import ActivityTracker from './pages/ActivityTracker'
 import LinkedInConnections from './pages/LinkedInConnections'
@@ -27,7 +31,7 @@ const PAGE_CONFIG = {
   '/settings': { title: 'Settings', subtitle: 'Manage team members, targets, and system configuration' },
 }
 
-export default function App() {
+function ProtectedLayout() {
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState(null)
   const [currentPath, setCurrentPath] = useState('/')
@@ -87,5 +91,26 @@ export default function App() {
         <SyncResultModal result={syncResult} onClose={() => setSyncResult(null)} />
       )}
     </div>
+  )
+}
+
+export default function App() {
+  const { isAuthenticated, loading } = useAuth()
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0F172A]">
+        <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  return (
+    <Routes>
+      <Route path="/login" element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/*" element={isAuthenticated ? <ProtectedLayout /> : <Navigate to="/login" replace />} />
+    </Routes>
   )
 }

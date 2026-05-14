@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { RefreshCw, RotateCcw, ChevronDown, Sun, Moon, Monitor, Filter, Shield, User } from 'lucide-react'
+import { RefreshCw, RotateCcw, ChevronDown, Sun, Moon, Monitor, Filter, Shield, User, LogOut } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
 import { useFilters } from '../context/FilterContext'
+import { useAuth } from '../context/AuthContext'
 import { useEmployees } from '../hooks/useApi'
 
 const DATE_PRESETS = [
@@ -32,6 +33,7 @@ const STATUSES = [
 
 export default function Header({ title, subtitle, onSync, syncing }) {
   const { mode, isDark, cycleTheme } = useTheme()
+  const { user, logout } = useAuth()
   const {
     employee, datePreset, channel, status,
     setEmployee, setDateRange, setDatePreset, setChannel, setStatus, resetFilters,
@@ -161,6 +163,24 @@ export default function Header({ title, subtitle, onSync, syncing }) {
             <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
             {syncing ? 'Syncing...' : 'Sync Now'}
           </button>
+
+          {user && (
+            <div className={`flex items-center gap-2 pl-3 border-l ${isDark ? 'border-[#334155]' : 'border-[#E2E8F0]'}`}>
+              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                {user.full_name?.charAt(0)?.toUpperCase() || 'U'}
+              </div>
+              <span className={`text-sm font-medium hidden xl:inline ${isDark ? 'text-[#F1F5F9]' : 'text-[#0F172A]'}`}>
+                {user.full_name}
+              </span>
+              <button
+                onClick={logout}
+                className={`p-2 rounded-full transition-colors ${isDark ? 'hover:bg-[#334155] text-[#94A3B8]' : 'hover:bg-[#F1F5F9] text-[#64748B]'}`}
+                title="Logout"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

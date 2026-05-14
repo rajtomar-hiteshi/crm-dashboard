@@ -300,3 +300,17 @@ class IngestionLog(Base):
     sample_row_check_passed = Column(Boolean)
     numeric_checksum_passed = Column(Boolean)
     ingested_at = Column(DateTime)
+
+
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True)
+    email = Column(Text, nullable=False, unique=True)
+    password_hash = Column(Text, nullable=False)
+    full_name = Column(Text, nullable=False)
+    role = Column(Text, default='admin')
+    is_active = Column(Boolean, default=True)
+    reset_token = Column(Text)
+    reset_token_expiry = Column(DateTime)
+    created_at = Column(DateTime)
+    last_login = Column(DateTime)

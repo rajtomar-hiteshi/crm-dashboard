@@ -291,7 +291,7 @@ def scan_file(body: dict, db: Session = Depends(get_db)):
     total_rows = sum(ws["rows"] for ws in worksheets)
 
     return {
-        "file_name": spreadsheet.title,
+        "file_name": file_name,
         "drive_file_id": drive_file_id,
         "file_type": file_type,
         "worksheets": worksheets,

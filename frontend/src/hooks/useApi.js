@@ -60,6 +60,41 @@ export function useLeads() {
   return useFetchWithFilters('leads', '/api/leads')
 }
 
+export function useDailyActivity(params) {
+  return useQuery({
+    queryKey: ['daily-activity', params],
+    queryFn: () => api.get('/api/daily-activity', { params }).then(r => r.data),
+    staleTime: STALE_5M,
+    placeholderData: (prev) => prev,
+    enabled: !!params,
+  })
+}
+
+export function useDailyActivityDrillDown(params) {
+  return useQuery({
+    queryKey: ['daily-activity-drilldown', params],
+    queryFn: () => api.get('/api/daily-activity/drill-down', { params }).then(r => r.data),
+    staleTime: STALE_5M,
+    enabled: !!params?.person_id && !!params?.type,
+  })
+}
+
+export function usePersons() {
+  return useQuery({
+    queryKey: ['persons'],
+    queryFn: () => api.get('/api/persons').then(r => r.data),
+    staleTime: STALE_30M,
+  })
+}
+
+export function useDailyTargets() {
+  return useQuery({
+    queryKey: ['daily-targets'],
+    queryFn: () => api.get('/api/daily-activity/targets').then(r => r.data),
+    staleTime: STALE_30M,
+  })
+}
+
 export function useDrilldown(metric) {
   const { queryParams } = useFilters()
   return useQuery({

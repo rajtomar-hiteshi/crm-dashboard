@@ -7,6 +7,9 @@ from database import engine, Base
 import models  # noqa: F401 — ensures all models are registered
 
 NEW_COLUMNS = {
+    "persons": [
+        ("role", "VARCHAR DEFAULT 'Lead Gen Executive'"),
+    ],
     "positive_responses_detail": [
         ("client_linkedin_url", "VARCHAR"),
         ("client_type", "VARCHAR"),

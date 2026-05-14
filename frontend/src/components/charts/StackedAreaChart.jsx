@@ -7,6 +7,14 @@ import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import { fmtNum, fmtChartDate } from '../../utils/formatters'
 
+/* Short "MMM D" date formatter for x-axis ticks (e.g. "Jan 9") */
+function fmtAxisDate(s) {
+  if (!s) return ''
+  const d = new Date(s)
+  if (isNaN(d)) return s
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
 const COLORS = ['#3B82F6', '#06B6D4', '#10B981', '#F59E0B', '#8B5CF6', '#EF4444', '#F97316']
 
 export default function StackedAreaChart({ data, areas, xKey = 'date', height = 300, zoomable = false }) {
@@ -77,9 +85,19 @@ export default function StackedAreaChart({ data, areas, xKey = 'date', height = 
         </div>
       )}
       <ResponsiveContainer width="100%" height={zoomable ? height + 40 : height}>
-        <AreaChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: zoomable ? 30 : 5 }}>
+        <AreaChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: zoomable ? 50 : 40 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} opacity={0.3} />
-          <XAxis dataKey={xKey} stroke={chartColors.axis} fontSize={11} tickLine={false} tickFormatter={xKey === 'date' ? fmtChartDate : undefined} />
+          <XAxis
+            dataKey={xKey}
+            stroke={chartColors.axis}
+            fontSize={11}
+            tickLine={false}
+            tickFormatter={xKey === 'date' ? fmtAxisDate : undefined}
+            interval={xKey === 'date' && data.length > 14 ? 13 : 0}
+            angle={-45}
+            textAnchor="end"
+            dy={10}
+          />
           <YAxis stroke={chartColors.axis} fontSize={12} tickLine={false} />
           <Tooltip content={<CustomTooltip />} />
           <Legend wrapperStyle={{ fontSize: 12, color: chartColors.axis }} iconType="circle" />

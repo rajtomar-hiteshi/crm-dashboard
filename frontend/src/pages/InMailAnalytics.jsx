@@ -1,7 +1,9 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { Mail, Crown, TrendingUp, Percent, Loader2 } from 'lucide-react'
-import api from '../api/api'
+import { useInMails } from '../hooks/useApi'
+import { useFilters } from '../context/FilterContext'
 import KPICard from '../components/KPICard'
+import DrillDownDrawer from '../components/DrillDownDrawer'
 import DonutChart from '../components/charts/DonutChart'
 import StackedBarChart from '../components/charts/StackedBarChart'
 import { fmtNum, fmtPct } from '../utils/formatters'
@@ -11,17 +13,10 @@ const EMPLOYEE_COLORS = {
   Tanishqa: '#F59E0B', Yashika: '#8B5CF6', Seema: '#EF4444', Arni: '#F97316',
 }
 
-export default function InMailAnalytics({ employee, startDate, endDate, onEmployeeSelect }) {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    setLoading(true)
-    api.get('/api/inmails', { params: { employee, start_date: startDate, end_date: endDate } })
-      .then(res => setData(res.data))
-      .catch(() => setData(null))
-      .finally(() => setLoading(false))
-  }, [employee, startDate, endDate])
+export default function InMailAnalytics() {
+  const { employee, setEmployee } = useFilters()
+  const { data, isLoading } = useInMails()
+  const [drillDown, setDrillDown] = useState({ open: false, metric: null, title: '', color: '' })
 
   const monthlyBars = useMemo(() => {
     if (!data?.monthly_volume?.length) return []
@@ -34,7 +29,11 @@ export default function InMailAnalytics({ employee, startDate, endDate, onEmploy
     return [...data.metrics_table].sort((a, b) => b.total - a.total).slice(0, 3).map(e => ({ name: e.employee, value: e.total, color: e.color }))
   }, [data])
 
-  if (loading) {
+  const handleDrillDown = (metric, title, color) => {
+    setDrillDown({ open: true, metric, title, color })
+  }
+
+  if (isLoading && !data) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 text-blue-500 animate-spin" /></div>
   }
   if (!data) {
@@ -46,7 +45,7 @@ export default function InMailAnalytics({ employee, startDate, endDate, onEmploy
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard title="Total InMails" value={kpis.total} icon={Mail} color="#10B981" details={kpiDetails} onDetailClick={onEmployeeSelect} />
+        <KPICard title="Total InMails" value={kpis.total} icon={Mail} color="#10B981" details={kpiDetails} onDetailClick={setEmployee} metric="inmails" onDrillDown={handleDrillDown} />
         <KPICard title="Top InMailer" value={kpis.top_inmailer} icon={Crown} color="#F59E0B" />
         <KPICard title="Highest Daily Avg" value={kpis.highest_daily_avg} icon={TrendingUp} color="#3B82F6" />
         <KPICard title="IM:Conn Ratio" value={fmtPct(kpis.avg_im_conn_ratio)} icon={Percent} color="#8B5CF6" />
@@ -56,7 +55,7 @@ export default function InMailAnalytics({ employee, startDate, endDate, onEmploy
         <div className="bg-surface-card border border-edge rounded-xl p-5">
           <h3 className="text-base font-semibold text-content mb-4">InMail Distribution</h3>
           {distribution.length > 0 ? (
-            <DonutChart data={distribution} dataKey="inmails" onSliceClick={onEmployeeSelect} selectedEmployee={employee !== 'all' ? employee : null} />
+            <DonutChart data={distribution} dataKey="inmails" onSliceClick={setEmployee} selectedEmployee={employee !== 'all' ? employee : null} />
           ) : <p className="text-content-muted text-sm text-center py-10">No data</p>}
         </div>
         <div className="bg-surface-card border border-edge rounded-xl p-5">
@@ -83,7 +82,7 @@ export default function InMailAnalytics({ employee, startDate, endDate, onEmploy
             </thead>
             <tbody>
               {metrics_table.map(row => (
-                <tr key={row.employee} className="border-b border-edge/50 hover:bg-surface-hover cursor-pointer" onClick={() => onEmployeeSelect?.(row.employee)}>
+                <tr key={row.employee} className="border-b border-edge/50 hover:bg-surface-hover cursor-pointer" onClick={() => setEmployee(row.employee)}>
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full" style={{ backgroundColor: row.color }} />
@@ -108,6 +107,14 @@ export default function InMailAnalytics({ employee, startDate, endDate, onEmploy
           </table>
         </div>
       </div>
+
+      <DrillDownDrawer
+        isOpen={drillDown.open}
+        onClose={() => setDrillDown({ open: false, metric: null, title: '', color: '' })}
+        metric={drillDown.metric}
+        title={drillDown.title}
+        color={drillDown.color}
+      />
     </div>
   )
 }

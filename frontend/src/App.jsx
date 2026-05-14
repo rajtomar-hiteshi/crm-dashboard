@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import Sidebar from './components/Sidebar'
 import Header from './components/Header'
@@ -22,16 +22,8 @@ const PAGE_CONFIG = {
 }
 
 export default function App() {
-  const [employee, setEmployee] = useState('all')
-  const [startDate, setStartDate] = useState(null)
-  const [endDate, setEndDate] = useState(null)
-  const [employees, setEmployees] = useState([])
   const [syncing, setSyncing] = useState(false)
   const [currentPath, setCurrentPath] = useState('/')
-
-  useEffect(() => {
-    api.get('/api/employees').then(res => setEmployees(res.data)).catch(() => {})
-  }, [])
 
   const handleSync = useCallback(async () => {
     setSyncing(true)
@@ -44,23 +36,7 @@ export default function App() {
     }
   }, [])
 
-  const handleReset = useCallback(() => {
-    setEmployee('all')
-    setStartDate(null)
-    setEndDate(null)
-  }, [])
-
-  const handleDateChange = useCallback(({ startDate: sd, endDate: ed }) => {
-    setStartDate(sd)
-    setEndDate(ed)
-  }, [])
-
-  const handleEmployeeSelect = useCallback((name) => {
-    setEmployee(name)
-  }, [])
-
   const pageConfig = PAGE_CONFIG[currentPath] || PAGE_CONFIG['/']
-  const filterProps = { employee, startDate, endDate, onEmployeeSelect: handleEmployeeSelect }
 
   return (
     <div className="flex h-screen overflow-hidden bg-surface">
@@ -69,25 +45,18 @@ export default function App() {
         <Header
           title={pageConfig.title}
           subtitle={pageConfig.subtitle}
-          employee={employee}
-          startDate={startDate}
-          endDate={endDate}
-          employees={employees}
-          onEmployeeChange={setEmployee}
-          onDateChange={handleDateChange}
-          onReset={handleReset}
           onSync={handleSync}
           syncing={syncing}
         />
         <main className="flex-1 overflow-y-auto p-6">
           <Routes>
-            <Route path="/" element={<MasterDashboard {...filterProps} />} />
-            <Route path="/activity" element={<ActivityTracker {...filterProps} />} />
-            <Route path="/connections" element={<LinkedInConnections {...filterProps} />} />
-            <Route path="/followups" element={<FollowUps {...filterProps} />} />
-            <Route path="/inmails" element={<InMailAnalytics {...filterProps} />} />
-            <Route path="/positive-responses" element={<PositiveResponses {...filterProps} />} />
-            <Route path="/leads" element={<LeadPipeline {...filterProps} />} />
+            <Route path="/" element={<MasterDashboard />} />
+            <Route path="/activity" element={<ActivityTracker />} />
+            <Route path="/connections" element={<LinkedInConnections />} />
+            <Route path="/followups" element={<FollowUps />} />
+            <Route path="/inmails" element={<InMailAnalytics />} />
+            <Route path="/positive-responses" element={<PositiveResponses />} />
+            <Route path="/leads" element={<LeadPipeline />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>

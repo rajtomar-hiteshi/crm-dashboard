@@ -1,25 +1,20 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { Users, MessageSquare, Mail, TrendingUp, Target, Award, Loader2 } from 'lucide-react'
-import api from '../api/api'
+import { useDashboard } from '../hooks/useApi'
+import { useFilters } from '../context/FilterContext'
 import KPICard from '../components/KPICard'
+import DrillDownDrawer from '../components/DrillDownDrawer'
 import MultiLineChart from '../components/charts/MultiLineChart'
 import DonutChart from '../components/charts/DonutChart'
 import VerticalBarChart from '../components/charts/VerticalBarChart'
 import MonthDetailModal from '../components/MonthDetailModal'
 import { fmtNum, fmtPct } from '../utils/formatters'
 
-export default function MasterDashboard({ employee, startDate, endDate, onEmployeeSelect }) {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
+export default function MasterDashboard() {
+  const { employee, setEmployee } = useFilters()
+  const { data, isLoading } = useDashboard()
   const [modal, setModal] = useState({ open: false, title: '', data: [] })
-
-  useEffect(() => {
-    setLoading(true)
-    api.get('/api/dashboard', { params: { employee, start_date: startDate, end_date: endDate } })
-      .then(res => setData(res.data))
-      .catch(() => setData(null))
-      .finally(() => setLoading(false))
-  }, [employee, startDate, endDate])
+  const [drillDown, setDrillDown] = useState({ open: false, metric: null, title: '', color: '' })
 
   const kpiDetails = useMemo(() => {
     if (!data?.employee_comparison) return {}
@@ -44,14 +39,14 @@ export default function MasterDashboard({ employee, startDate, endDate, onEmploy
 
   const handleMonthClick = (point) => {
     if (!point?.month) return
-    setModal({
-      open: true,
-      title: `Details for ${point.month}`,
-      data: [point],
-    })
+    setModal({ open: true, title: `Details for ${point.month}`, data: [point] })
   }
 
-  if (loading) {
+  const handleDrillDown = (metric, title, color) => {
+    setDrillDown({ open: true, metric, title, color })
+  }
+
+  if (isLoading && !data) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 text-blue-500 animate-spin" /></div>
   }
   if (!data) {
@@ -63,12 +58,12 @@ export default function MasterDashboard({ employee, startDate, endDate, onEmploy
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <KPICard title="Total Connections" value={kpis.total_connections} icon={Users} color="#3B82F6" details={kpiDetails.connections} onDetailClick={onEmployeeSelect} />
-        <KPICard title="Follow-Ups" value={kpis.total_followups} icon={MessageSquare} color="#06B6D4" details={kpiDetails.follow_ups} onDetailClick={onEmployeeSelect} />
-        <KPICard title="InMails Sent" value={kpis.total_inmails} icon={Mail} color="#10B981" details={kpiDetails.inmails} onDetailClick={onEmployeeSelect} />
-        <KPICard title="Positive Responses" value={kpis.total_positive_responses} icon={TrendingUp} color="#F59E0B" details={prDetails} onDetailClick={onEmployeeSelect} />
-        <KPICard title="Leads Generated" value={kpis.total_leads} icon={Target} color="#8B5CF6" details={leadDetails} onDetailClick={onEmployeeSelect} />
-        <KPICard title="Response Rate" value={fmtPct(kpis.response_rate)} icon={Award} color="#EF4444" />
+        <KPICard title="Total Connections" value={kpis.total_connections} icon={Users} color="#3B82F6" details={kpiDetails.connections} onDetailClick={setEmployee} metric="connections" onDrillDown={handleDrillDown} />
+        <KPICard title="Follow-Ups" value={kpis.total_followups} icon={MessageSquare} color="#06B6D4" details={kpiDetails.follow_ups} onDetailClick={setEmployee} metric="followups" onDrillDown={handleDrillDown} />
+        <KPICard title="InMails Sent" value={kpis.total_inmails} icon={Mail} color="#10B981" details={kpiDetails.inmails} onDetailClick={setEmployee} metric="inmails" onDrillDown={handleDrillDown} />
+        <KPICard title="Positive Responses" value={kpis.total_positive_responses} icon={TrendingUp} color="#F59E0B" details={prDetails} onDetailClick={setEmployee} metric="positive_responses" onDrillDown={handleDrillDown} />
+        <KPICard title="Leads Generated" value={kpis.total_leads} icon={Target} color="#8B5CF6" details={leadDetails} onDetailClick={setEmployee} metric="leads" onDrillDown={handleDrillDown} />
+        <KPICard title="Response Rate" value={fmtPct(kpis.response_rate)} icon={Award} color="#EF4444" metric="response_rate" onDrillDown={handleDrillDown} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -94,7 +89,7 @@ export default function MasterDashboard({ employee, startDate, endDate, onEmploy
           {connection_share.length > 0 ? (
             <DonutChart
               data={connection_share}
-              onSliceClick={onEmployeeSelect}
+              onSliceClick={setEmployee}
               selectedEmployee={employee !== 'all' ? employee : null}
             />
           ) : (
@@ -114,7 +109,7 @@ export default function MasterDashboard({ employee, startDate, endDate, onEmploy
                 { key: 'follow_ups', name: 'Follow-Ups', color: '#06B6D4' },
                 { key: 'inmails', name: 'InMails', color: '#10B981' },
               ]}
-              onBarClick={onEmployeeSelect}
+              onBarClick={setEmployee}
               selectedEmployee={employee !== 'all' ? employee : null}
             />
           ) : (
@@ -149,7 +144,7 @@ export default function MasterDashboard({ employee, startDate, endDate, onEmploy
             <h3 className="text-base font-semibold text-content mb-4">Top Performers</h3>
             <div className="space-y-3">
               {top_performers.slice(0, 5).map(p => (
-                <div key={p.employee} className="flex items-center gap-3">
+                <div key={p.employee} className="flex items-center gap-3 cursor-pointer hover:bg-surface-hover p-1 -mx-1 rounded-lg transition-colors" onClick={() => setEmployee(p.employee)}>
                   <span className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
                     style={{ backgroundColor: `${p.color}20`, color: p.color }}>
                     {p.rank}
@@ -180,6 +175,14 @@ export default function MasterDashboard({ employee, startDate, endDate, onEmploy
           { key: 'inmails', label: 'InMails', align: 'right' },
           { key: 'leads', label: 'Leads', align: 'right' },
         ]}
+      />
+
+      <DrillDownDrawer
+        isOpen={drillDown.open}
+        onClose={() => setDrillDown({ open: false, metric: null, title: '', color: '' })}
+        metric={drillDown.metric}
+        title={drillDown.title}
+        color={drillDown.color}
       />
     </div>
   )

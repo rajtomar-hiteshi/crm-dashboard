@@ -45,3 +45,131 @@ body {
   background: var(--color-bg);
   color: var(--color-text);
 }
+
+/* KPI Card hover & click transitions */
+.kpi-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.15), 0 4px 10px -6px rgba(0, 0, 0, 0.1);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.kpi-card:active {
+  transform: translateY(0);
+}
+
+.kpi-card .drill-down-arrow {
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.kpi-card:hover .drill-down-arrow {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* Drawer slide-in animation */
+.drawer-slide-in {
+  animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0.5;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Drawer backdrop fade */
+.drawer-backdrop {
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Popover enter animation */
+.popover-enter {
+  animation: popoverIn 0.15s ease;
+}
+
+@keyframes popoverIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Filter row enter animation */
+.filter-row-enter {
+  animation: filterSlideDown 0.2s ease;
+}
+
+@keyframes filterSlideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 80px;
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+  }
+}
+
+/* Chart card hover */
+.bg-surface-card {
+  transition: border-color 0.2s ease;
+}
+
+.bg-surface-card:hover {
+  border-color: var(--color-text-tertiary);
+}
+
+/* Table row transitions */
+tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+/* Tab underline transition */
+button[class*="border-b-2"] {
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+/* Responsive drawer */
+@media (max-width: 640px) {
+  .drawer-slide-in {
+    max-width: 100% !important;
+  }
+}
+
+/* Sidebar responsive */
+@media (max-width: 1024px) {
+  aside {
+    position: fixed;
+    z-index: 30;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+  }
+
+  aside.open {
+    transform: translateX(0);
+  }
+}

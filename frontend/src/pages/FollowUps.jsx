@@ -1,7 +1,9 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { MessageSquare, Award, TrendingUp, BarChart3, Loader2 } from 'lucide-react'
-import api from '../api/api'
+import { useFollowUps } from '../hooks/useApi'
+import { useFilters } from '../context/FilterContext'
 import KPICard from '../components/KPICard'
+import DrillDownDrawer from '../components/DrillDownDrawer'
 import HorizontalBarChart from '../components/charts/HorizontalBarChart'
 import MultiLineChart from '../components/charts/MultiLineChart'
 import StackedAreaChart from '../components/charts/StackedAreaChart'
@@ -12,17 +14,10 @@ const EMPLOYEE_COLORS = {
   Tanishqa: '#F59E0B', Yashika: '#8B5CF6', Seema: '#EF4444', Arni: '#F97316',
 }
 
-export default function FollowUps({ employee, startDate, endDate, onEmployeeSelect }) {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    setLoading(true)
-    api.get('/api/followups', { params: { employee, start_date: startDate, end_date: endDate } })
-      .then(res => setData(res.data))
-      .catch(() => setData(null))
-      .finally(() => setLoading(false))
-  }, [employee, startDate, endDate])
+export default function FollowUps() {
+  const { employee, setEmployee } = useFilters()
+  const { data, isLoading } = useFollowUps()
+  const [drillDown, setDrillDown] = useState({ open: false, metric: null, title: '', color: '' })
 
   const stackedAreas = useMemo(() => {
     if (!data?.daily_stacked?.length) return []
@@ -35,7 +30,11 @@ export default function FollowUps({ employee, startDate, endDate, onEmployeeSele
     return [...data.metrics_table].sort((a, b) => b.total - a.total).slice(0, 3).map(e => ({ name: e.employee, value: e.total, color: e.color }))
   }, [data])
 
-  if (loading) {
+  const handleDrillDown = (metric, title, color) => {
+    setDrillDown({ open: true, metric, title, color })
+  }
+
+  if (isLoading && !data) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 text-blue-500 animate-spin" /></div>
   }
   if (!data) {
@@ -47,7 +46,7 @@ export default function FollowUps({ employee, startDate, endDate, onEmployeeSele
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard title="Total Follow-Ups" value={kpis.total} icon={MessageSquare} color="#06B6D4" details={kpiDetails} onDetailClick={onEmployeeSelect} />
+        <KPICard title="Total Follow-Ups" value={kpis.total} icon={MessageSquare} color="#06B6D4" details={kpiDetails} onDetailClick={setEmployee} metric="followups" onDrillDown={handleDrillDown} />
         <KPICard title="Best FU Rate" value={fmtPct(kpis.best_fu_rate)} icon={Award} color="#10B981" />
         <KPICard title="Highest Daily Avg" value={kpis.highest_daily_avg} icon={TrendingUp} color="#F59E0B" />
         <KPICard title="Team FU:Conn Ratio" value={fmtPct(kpis.team_fu_conn_ratio)} icon={BarChart3} color="#8B5CF6" />
@@ -57,7 +56,7 @@ export default function FollowUps({ employee, startDate, endDate, onEmployeeSele
         <div className="bg-surface-card border border-edge rounded-xl p-5">
           <h3 className="text-base font-semibold text-content mb-4">Follow-Ups by Employee</h3>
           {by_employee.length > 0 ? (
-            <HorizontalBarChart data={by_employee} dataKey="follow_ups" onBarClick={onEmployeeSelect} selectedEmployee={employee !== 'all' ? employee : null} />
+            <HorizontalBarChart data={by_employee} dataKey="follow_ups" onBarClick={setEmployee} selectedEmployee={employee !== 'all' ? employee : null} />
           ) : <p className="text-content-muted text-sm text-center py-10">No data</p>}
         </div>
         <div className="bg-surface-card border border-edge rounded-xl p-5">
@@ -91,7 +90,7 @@ export default function FollowUps({ employee, startDate, endDate, onEmployeeSele
             </thead>
             <tbody>
               {metrics_table.map(row => (
-                <tr key={row.employee} className="border-b border-edge/50 hover:bg-surface-hover cursor-pointer" onClick={() => onEmployeeSelect?.(row.employee)}>
+                <tr key={row.employee} className="border-b border-edge/50 hover:bg-surface-hover cursor-pointer" onClick={() => setEmployee(row.employee)}>
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full" style={{ backgroundColor: row.color }} />
@@ -122,6 +121,14 @@ export default function FollowUps({ employee, startDate, endDate, onEmployeeSele
           </table>
         </div>
       </div>
+
+      <DrillDownDrawer
+        isOpen={drillDown.open}
+        onClose={() => setDrillDown({ open: false, metric: null, title: '', color: '' })}
+        metric={drillDown.metric}
+        title={drillDown.title}
+        color={drillDown.color}
+      />
     </div>
   )
 }

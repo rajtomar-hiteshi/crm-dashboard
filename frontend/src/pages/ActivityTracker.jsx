@@ -1,24 +1,16 @@
-import { useState, useEffect } from 'react'
 import { Loader2 } from 'lucide-react'
-import api from '../api/api'
+import { useActivity } from '../hooks/useApi'
+import { useFilters } from '../context/FilterContext'
 import StackedAreaChart from '../components/charts/StackedAreaChart'
 import StackedBarChart from '../components/charts/StackedBarChart'
 import VerticalBarChart from '../components/charts/VerticalBarChart'
 import { fmtNum, fmtPct } from '../utils/formatters'
 
-export default function ActivityTracker({ employee, startDate, endDate, onEmployeeSelect }) {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
+export default function ActivityTracker() {
+  const { setEmployee } = useFilters()
+  const { data, isLoading } = useActivity()
 
-  useEffect(() => {
-    setLoading(true)
-    api.get('/api/activity', { params: { employee, start_date: startDate, end_date: endDate } })
-      .then(res => setData(res.data))
-      .catch(() => setData(null))
-      .finally(() => setLoading(false))
-  }, [employee, startDate, endDate])
-
-  if (loading) {
+  if (isLoading && !data) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 text-blue-500 animate-spin" /></div>
   }
   if (!data) {
@@ -78,7 +70,7 @@ export default function ActivityTracker({ employee, startDate, endDate, onEmploy
               { key: 'avg_follow_ups', name: 'Avg Follow-Ups', color: '#06B6D4' },
             ]}
             height={300}
-            onBarClick={onEmployeeSelect}
+            onBarClick={setEmployee}
           />
         ) : (
           <p className="text-content-muted text-sm text-center py-10">No data</p>
@@ -103,7 +95,7 @@ export default function ActivityTracker({ employee, startDate, endDate, onEmploy
             </thead>
             <tbody>
               {summary_table.map(row => (
-                <tr key={row.employee} className="border-b border-edge/50 hover:bg-surface-hover cursor-pointer" onClick={() => onEmployeeSelect?.(row.employee)}>
+                <tr key={row.employee} className="border-b border-edge/50 hover:bg-surface-hover cursor-pointer" onClick={() => setEmployee(row.employee)}>
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full" style={{ backgroundColor: row.color }} />

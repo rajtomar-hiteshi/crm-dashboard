@@ -32,24 +32,41 @@ def get_leads(
     has_pipeline_data = len(pipeline_results) > 0
     logger.info(f"Leads: {len(pipeline_results)} pipeline records")
 
-    if not results:
+    if not results and not has_pipeline_data:
         return {
             "kpis": {"total_leads": 0, "conversion_rate": 0, "unique_geographies": 0, "top_generator": "N/A"},
             "by_employee": [], "geography": [], "monthly_trend": [],
             "conversion_by_employee": [], "all_leads": [], "has_pipeline_data": False,
         }
 
-    total_leads = sum(safe_int(r.leads_generated) for r, _ in results)
-    total_conn = sum(safe_int(r.linkedin_connections) for r, _ in results)
-    conversion_rate = round(total_leads / max(total_conn, 1) * 100, 2)
-
+    # Build base emp_data from target_tracking (connections, positive_responses)
     emp_data = {}
     for r, name in results:
         if name not in emp_data:
             emp_data[name] = {"leads": 0, "conn": 0, "pr": 0}
-        emp_data[name]["leads"] += safe_int(r.leads_generated)
         emp_data[name]["conn"] += safe_int(r.linkedin_connections)
         emp_data[name]["pr"] += safe_int(r.positive_responses)
+
+    # Use pipeline (leads_generated table) for lead counts when available,
+    # otherwise fall back to target_tracking.leads_generated text sums
+    if has_pipeline_data:
+        pipeline_emp_counts = {}
+        for lead, name in pipeline_results:
+            pipeline_emp_counts[name] = pipeline_emp_counts.get(name, 0) + 1
+        for name in emp_data:
+            emp_data[name]["leads"] = pipeline_emp_counts.get(name, 0)
+        # Include employees who appear in pipeline but not in target_tracking
+        for name, count in pipeline_emp_counts.items():
+            if name not in emp_data:
+                emp_data[name] = {"leads": count, "conn": 0, "pr": 0}
+        total_leads = sum(pipeline_emp_counts.values())
+    else:
+        for r, name in results:
+            emp_data[name]["leads"] += safe_int(r.leads_generated)
+        total_leads = sum(d["leads"] for d in emp_data.values())
+
+    total_conn = sum(d["conn"] for d in emp_data.values())
+    conversion_rate = round(total_leads / max(total_conn, 1) * 100, 2)
 
     top_gen = max(emp_data, key=lambda k: emp_data[k]["leads"]) if emp_data else "N/A"
 
@@ -81,12 +98,27 @@ def get_leads(
     ]
 
     monthly = {}
-    for r, name in results:
-        key = r.activity_date.strftime("%Y-%m")
-        if key not in monthly:
-            monthly[key] = {"month": key, "leads": 0, "positive_responses": 0}
-        monthly[key]["leads"] += safe_int(r.leads_generated)
-        monthly[key]["positive_responses"] += safe_int(r.positive_responses)
+    if has_pipeline_data:
+        # Use pipeline records for lead counts in monthly trend
+        for lead, name in pipeline_results:
+            if lead.inquiry_date:
+                key = lead.inquiry_date.strftime("%Y-%m")
+                if key not in monthly:
+                    monthly[key] = {"month": key, "leads": 0, "positive_responses": 0}
+                monthly[key]["leads"] += 1
+        # Merge positive_responses from target_tracking
+        for r, name in results:
+            key = r.activity_date.strftime("%Y-%m")
+            if key not in monthly:
+                monthly[key] = {"month": key, "leads": 0, "positive_responses": 0}
+            monthly[key]["positive_responses"] += safe_int(r.positive_responses)
+    else:
+        for r, name in results:
+            key = r.activity_date.strftime("%Y-%m")
+            if key not in monthly:
+                monthly[key] = {"month": key, "leads": 0, "positive_responses": 0}
+            monthly[key]["leads"] += safe_int(r.leads_generated)
+            monthly[key]["positive_responses"] += safe_int(r.positive_responses)
     monthly_trend = sorted(monthly.values(), key=lambda x: x["month"])
 
     conversion_by_employee = [

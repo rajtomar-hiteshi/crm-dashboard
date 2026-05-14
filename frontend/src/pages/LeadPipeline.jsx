@@ -1,23 +1,22 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { Target, Percent, Globe, Crown, Loader2, Sparkles, AlertCircle } from 'lucide-react'
-import api from '../api/api'
+import { useLeads } from '../hooks/useApi'
+import { useFilters } from '../context/FilterContext'
 import KPICard from '../components/KPICard'
+import DrillDownDrawer from '../components/DrillDownDrawer'
 import VerticalBarChart from '../components/charts/VerticalBarChart'
 import HorizontalBarChart from '../components/charts/HorizontalBarChart'
 import MultiLineChart from '../components/charts/MultiLineChart'
 import { fmtNum, fmtPct, fmtDate } from '../utils/formatters'
 
-export default function LeadPipeline({ employee, startDate, endDate, onEmployeeSelect }) {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
+export default function LeadPipeline() {
+  const { employee, setEmployee } = useFilters()
+  const { data, isLoading } = useLeads()
+  const [drillDown, setDrillDown] = useState({ open: false, metric: null, title: '', color: '' })
 
-  useEffect(() => {
-    setLoading(true)
-    api.get('/api/leads', { params: { employee, start_date: startDate, end_date: endDate } })
-      .then(res => setData(res.data))
-      .catch(() => setData(null))
-      .finally(() => setLoading(false))
-  }, [employee, startDate, endDate])
+  const handleDrillDown = (metric, title, color) => {
+    setDrillDown({ open: true, metric, title, color })
+  }
 
   const insights = useMemo(() => {
     if (!data) return []
@@ -45,7 +44,7 @@ export default function LeadPipeline({ employee, startDate, endDate, onEmployeeS
     return lines
   }, [data])
 
-  if (loading) {
+  if (isLoading && !data) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 text-blue-500 animate-spin" /></div>
   }
   if (!data) {
@@ -57,7 +56,7 @@ export default function LeadPipeline({ employee, startDate, endDate, onEmployeeS
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard title="Total Leads" value={kpis.total_leads} icon={Target} color="#8B5CF6" />
+        <KPICard title="Total Leads" value={kpis.total_leads} icon={Target} color="#8B5CF6" metric="leads" onDrillDown={handleDrillDown} />
         <KPICard title="Conversion Rate" value={fmtPct(kpis.conversion_rate)} icon={Percent} color="#10B981" />
         <KPICard title="Unique Geographies" value={kpis.unique_geographies} icon={Globe} color="#F59E0B" />
         <KPICard title="Top Generator" value={kpis.top_generator} icon={Crown} color="#3B82F6" />
@@ -69,7 +68,7 @@ export default function LeadPipeline({ employee, startDate, endDate, onEmployeeS
             <div className="bg-surface-card border border-edge rounded-xl p-5">
               <h3 className="text-base font-semibold text-content mb-4">Leads by Employee</h3>
               {by_employee.length > 0 ? (
-                <VerticalBarChart data={by_employee} bars={[{ key: 'leads', name: 'Leads' }]} colored onBarClick={onEmployeeSelect} selectedEmployee={employee !== 'all' ? employee : null} />
+                <VerticalBarChart data={by_employee} bars={[{ key: 'leads', name: 'Leads' }]} colored onBarClick={setEmployee} selectedEmployee={employee !== 'all' ? employee : null} />
               ) : <p className="text-content-muted text-sm text-center py-10">No data</p>}
             </div>
             <div className="bg-surface-card border border-edge rounded-xl p-5">
@@ -186,6 +185,14 @@ export default function LeadPipeline({ employee, startDate, endDate, onEmployeeS
           </table>
         </div>
       </div>
+
+      <DrillDownDrawer
+        isOpen={drillDown.open}
+        onClose={() => setDrillDown({ open: false, metric: null, title: '', color: '' })}
+        metric={drillDown.metric}
+        title={drillDown.title}
+        color={drillDown.color}
+      />
     </div>
   )
 }

@@ -1,25 +1,24 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { TrendingUp, Star, ThumbsUp, Award, Loader2, AlertCircle } from 'lucide-react'
-import api from '../api/api'
+import { usePositiveResponses } from '../hooks/useApi'
+import { useFilters } from '../context/FilterContext'
 import KPICard from '../components/KPICard'
+import DrillDownDrawer from '../components/DrillDownDrawer'
 import VerticalBarChart from '../components/charts/VerticalBarChart'
 import DonutChart from '../components/charts/DonutChart'
 import MultiLineChart from '../components/charts/MultiLineChart'
 import { fmtNum, fmtPct, fmtDate } from '../utils/formatters'
 
-export default function PositiveResponses({ employee, startDate, endDate, onEmployeeSelect }) {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
+export default function PositiveResponses() {
+  const { setEmployee } = useFilters()
+  const { data, isLoading } = usePositiveResponses()
+  const [drillDown, setDrillDown] = useState({ open: false, metric: null, title: '', color: '' })
 
-  useEffect(() => {
-    setLoading(true)
-    api.get('/api/positive-responses', { params: { employee, start_date: startDate, end_date: endDate } })
-      .then(res => setData(res.data))
-      .catch(() => setData(null))
-      .finally(() => setLoading(false))
-  }, [employee, startDate, endDate])
+  const handleDrillDown = (metric, title, color) => {
+    setDrillDown({ open: true, metric, title, color })
+  }
 
-  if (loading) {
+  if (isLoading && !data) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 text-blue-500 animate-spin" /></div>
   }
   if (!data) {
@@ -38,7 +37,7 @@ export default function PositiveResponses({ employee, startDate, endDate, onEmpl
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard title="Total Responses" value={kpis.total} icon={TrendingUp} color="#10B981" />
+        <KPICard title="Total Responses" value={kpis.total} icon={TrendingUp} color="#10B981" metric="positive_responses" onDrillDown={handleDrillDown} />
         <KPICard title="High Quality" value={kpis.high_quality} icon={Star} color="#3B82F6" />
         <KPICard title="Generic Interest" value={kpis.generic_interest} icon={ThumbsUp} color="#F59E0B" />
         <KPICard title="Best Rate" value={fmtPct(kpis.best_rate)} subtitle={kpis.best_rate_employee} icon={Award} color="#8B5CF6" />
@@ -62,7 +61,7 @@ export default function PositiveResponses({ employee, startDate, endDate, onEmpl
                 { key: 'positive_response', name: 'Positive Response', color: '#10B981' },
                 { key: 'generic_interest', name: 'Generic Interest', color: '#F59E0B' },
               ]}
-              onBarClick={onEmployeeSelect}
+              onBarClick={setEmployee}
             />
           ) : <p className="text-content-muted text-sm text-center py-10">No data</p>}
         </div>
@@ -125,6 +124,14 @@ export default function PositiveResponses({ employee, startDate, endDate, onEmpl
           </table>
         </div>
       </div>
+
+      <DrillDownDrawer
+        isOpen={drillDown.open}
+        onClose={() => setDrillDown({ open: false, metric: null, title: '', color: '' })}
+        metric={drillDown.metric}
+        title={drillDown.title}
+        color={drillDown.color}
+      />
     </div>
   )
 }

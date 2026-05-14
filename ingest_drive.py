@@ -18,7 +18,7 @@ import openpyxl
 # ──────────────────────────────────────────────
 # CONFIG
 # ──────────────────────────────────────────────
-DB = dict(host='localhost', port=int(os.getenv('DB_PORT', '5432')), dbname='leadgen_crm', user='postgres', password='postgres')
+DB = dict(host='localhost', port=int(os.getenv('DB_PORT', '5433')), dbname='leadgen_crm', user='postgres', password='postgres')
 CREDS_FILE = os.path.join(os.path.dirname(__file__), 'credentials.json')
 DOWNLOAD_DIR = os.path.join(os.path.dirname(__file__), 'drive_downloads')
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)

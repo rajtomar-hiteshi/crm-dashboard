@@ -108,7 +108,7 @@ def _summary(results, field, label):
 def _detail_table_drilldown(db, model, date_col_attr, fkw, person_map):
     date_col = getattr(model, date_col_attr)
     base = db.query(model, Person.short_name)\
-        .join(Person, model.person_id == Person.id)
+        .outerjoin(Person, model.person_id == Person.id)
     base = apply_filters(base, model.person_id, date_col, **fkw)
     records = base.all()
     total = len(records)
@@ -336,23 +336,23 @@ def _get_recent(db, metric, fkw):
 
     if metric == "positive_responses":
         base = db.query(PositiveResponse, Person.short_name)\
-            .join(Person, PositiveResponse.person_id == Person.id)
+            .outerjoin(Person, PositiveResponse.person_id == Person.id)
         base = apply_filters(base, PositiveResponse.person_id, PositiveResponse.response_date, **fkw)
         rows = base.order_by(PositiveResponse.response_date.desc()).limit(50).all()
         return [
             {
                 "date": r.response_date.isoformat() if r.response_date else "",
-                "employee": name,
+                "employee": name or "",
                 "detail": r.client_name or "",
                 "extra": r.response_quality or "",
-                "color": PERSON_COLORS.get(name, "#666"),
+                "color": PERSON_COLORS.get(name, "#666") if name else "#666",
             }
             for r, name in rows
         ]
 
     if metric == "leads":
         base = db.query(LeadGenerated, Person.short_name)\
-            .join(Person, LeadGenerated.person_id == Person.id)
+            .outerjoin(Person, LeadGenerated.person_id == Person.id)
         base = apply_filters(base, LeadGenerated.person_id, LeadGenerated.inquiry_date, **fkw)
         rows = base.order_by(LeadGenerated.inquiry_date.desc()).limit(50).all()
         return [

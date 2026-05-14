@@ -27,7 +27,7 @@ def get_positive_responses(
     results = base.all()
 
     detail_base = db.query(PositiveResponse, Person.short_name)\
-        .join(Person, PositiveResponse.person_id == Person.id)
+        .outerjoin(Person, PositiveResponse.person_id == Person.id)
     detail_base = apply_filters(detail_base, PositiveResponse.person_id, PositiveResponse.response_date, **fkw)
     detail_results = detail_base.order_by(PositiveResponse.response_date.desc()).all()
     total_pr = len(detail_results)
@@ -54,6 +54,7 @@ def get_positive_responses(
 
     pr_by_name = {}
     for d, name in detail_results:
+        name = name or "Unknown"
         pr_by_name[name] = pr_by_name.get(name, 0) + 1
     for name in emp_data:
         emp_data[name]["pr"] = pr_by_name.get(name, 0)
@@ -73,6 +74,7 @@ def get_positive_responses(
 
         emp_quality = {}
         for d, name in detail_results:
+            name = name or "Unknown"
             if name not in emp_quality:
                 emp_quality[name] = {"high_quality": 0, "positive_response": 0, "generic_interest": 0}
             q = (d.response_quality or "").lower()

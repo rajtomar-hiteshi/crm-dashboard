@@ -31,7 +31,7 @@ def get_leads(
         LeadGenerated.person_id, LeadGenerated.client_name, LeadGenerated.company_name
     ).subquery()
     lead_base = db.query(LeadGenerated, Person.short_name)\
-        .join(Person, LeadGenerated.person_id == Person.id)\
+        .outerjoin(Person, LeadGenerated.person_id == Person.id)\
         .filter(LeadGenerated.id.in_(dedup_subq))
     lead_base = apply_filters(lead_base, LeadGenerated.person_id, LeadGenerated.inquiry_date, **fkw)
     pipeline_results = lead_base.order_by(LeadGenerated.inquiry_date.desc()).all()
@@ -58,6 +58,7 @@ def get_leads(
 
     pipeline_emp_counts = {}
     for lead, name in pipeline_results:
+        name = name or "Unknown"
         pipeline_emp_counts[name] = pipeline_emp_counts.get(name, 0) + 1
     for name in emp_data:
         emp_data[name]["leads"] = pipeline_emp_counts.get(name, 0)

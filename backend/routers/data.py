@@ -14,6 +14,7 @@ from sqlalchemy import desc as sa_desc, asc as sa_asc, or_, cast, Text as SAText
 from sqlalchemy.orm import Session
 
 from database import get_db
+from filters import resolve_period
 from models import (
     Person, TargetTracking, LinkedinConnection, LinkedinFollowup,
     LinkedinInmail, Email, PositiveResponse, LeadGenerated,
@@ -110,7 +111,7 @@ TABLE_CONFIG = {
 }
 
 
-def _build_query(db: Session, cfg: dict, person: str, date_from: str, date_to: str, search: str):
+def _build_query(db: Session, cfg: dict, person: str, date_from: str, date_to: str, search: str, period: str = None):
     """Build a filtered query with Person join."""
     Model = cfg["model"]
     q = db.query(Model, Person.short_name).join(Person, Model.person_id == Person.id)
@@ -121,17 +122,23 @@ def _build_query(db: Session, cfg: dict, person: str, date_from: str, date_to: s
         except (ValueError, TypeError):
             q = q.filter(Person.short_name == person)
 
+    p_start, p_end = resolve_period(period) if period else (None, None)
+    eff_from = p_start or (date_from if date_from else None)
+    eff_to = p_end or (date_to if date_to else None)
+
     date_col_name = cfg["date_col"]
     if date_col_name:
         date_col = getattr(Model, date_col_name)
-        if date_from:
+        if eff_from:
             try:
-                q = q.filter(date_col >= date.fromisoformat(date_from))
+                d = eff_from if isinstance(eff_from, date) else date.fromisoformat(str(eff_from))
+                q = q.filter(date_col >= d)
             except ValueError:
                 pass
-        if date_to:
+        if eff_to:
             try:
-                q = q.filter(date_col <= date.fromisoformat(date_to))
+                d = eff_to if isinstance(eff_to, date) else date.fromisoformat(str(eff_to))
+                q = q.filter(date_col <= d)
             except ValueError:
                 pass
 
@@ -175,6 +182,7 @@ def get_table_data(
     person: str = Query("all"),
     date_from: str = Query(None),
     date_to: str = Query(None),
+    period: str = Query(None),
     search: str = Query(None),
     db: Session = Depends(get_db),
 ):
@@ -182,7 +190,7 @@ def get_table_data(
     if not cfg:
         raise HTTPException(status_code=404, detail=f"Unknown table: {table}")
 
-    q = _build_query(db, cfg, person, date_from, date_to, search)
+    q = _build_query(db, cfg, person, date_from, date_to, search, period)
     total = q.count()
 
     sort_col = None
@@ -217,6 +225,7 @@ def export_table(
     person: str = Query("all"),
     date_from: str = Query(None),
     date_to: str = Query(None),
+    period: str = Query(None),
     search: str = Query(None),
     db: Session = Depends(get_db),
 ):
@@ -224,7 +233,7 @@ def export_table(
     if not cfg:
         raise HTTPException(status_code=404, detail=f"Unknown table: {table}")
 
-    q = _build_query(db, cfg, person, date_from, date_to, search)
+    q = _build_query(db, cfg, person, date_from, date_to, search, period)
 
     if cfg["date_col"]:
         sort_col = getattr(cfg["model"], cfg["date_col"])

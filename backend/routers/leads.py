@@ -16,24 +16,26 @@ def get_leads(
     employee: str = Query("all"),
     start_date: str = Query(None),
     end_date: str = Query(None),
+    period: str = Query(None),
     db: Session = Depends(get_db),
 ):
+    fkw = dict(employee=employee, start_date=start_date, end_date=end_date, period=period)
     base = db.query(TargetTracking, Person.short_name)\
         .join(Person, TargetTracking.person_id == Person.id)\
         .filter(TargetTracking.activity_date.isnot(None))
-    base = apply_filters(base, TargetTracking.person_id, TargetTracking.activity_date, employee, start_date, end_date, db=db)
+    base = apply_filters(base, TargetTracking.person_id, TargetTracking.activity_date, **fkw)
     results = base.all()
 
     lead_base = db.query(LeadGenerated, Person.short_name)\
         .join(Person, LeadGenerated.person_id == Person.id)
-    lead_base = apply_filters(lead_base, LeadGenerated.person_id, LeadGenerated.inquiry_date, employee, start_date, end_date, db=db)
+    lead_base = apply_filters(lead_base, LeadGenerated.person_id, LeadGenerated.inquiry_date, **fkw)
     pipeline_results = lead_base.order_by(LeadGenerated.inquiry_date.desc()).all()
     has_pipeline_data = len(pipeline_results) > 0
     total_leads = len(pipeline_results)
     logger.info(f"Leads: {len(results)} tt rows, {total_leads} pipeline records")
 
     pr_q = db.query(PositiveResponse.person_id, PositiveResponse.response_date)
-    pr_q = apply_filters(pr_q, PositiveResponse.person_id, PositiveResponse.response_date, employee, start_date, end_date, db=db)
+    pr_q = apply_filters(pr_q, PositiveResponse.person_id, PositiveResponse.response_date, **fkw)
     pr_records = pr_q.all()
 
     if not results and not has_pipeline_data:

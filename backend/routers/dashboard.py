@@ -16,22 +16,24 @@ def get_dashboard(
     employee: str = Query("all"),
     start_date: str = Query(None),
     end_date: str = Query(None),
+    period: str = Query(None),
     db: Session = Depends(get_db),
 ):
+    fkw = dict(employee=employee, start_date=start_date, end_date=end_date, period=period)
     person_map = {p.id: (p.short_name or p.full_name) for p in db.query(Person).all()}
 
     base = db.query(TargetTracking, Person.short_name)\
         .join(Person, TargetTracking.person_id == Person.id)\
         .filter(TargetTracking.activity_date.isnot(None))
-    base = apply_filters(base, TargetTracking.person_id, TargetTracking.activity_date, employee, start_date, end_date, db=db)
+    base = apply_filters(base, TargetTracking.person_id, TargetTracking.activity_date, **fkw)
     results = base.all()
 
     pr_q = db.query(PositiveResponse.person_id, PositiveResponse.response_date)
-    pr_q = apply_filters(pr_q, PositiveResponse.person_id, PositiveResponse.response_date, employee, start_date, end_date, db=db)
+    pr_q = apply_filters(pr_q, PositiveResponse.person_id, PositiveResponse.response_date, **fkw)
     pr_records = pr_q.all()
 
     leads_q = db.query(LeadGenerated.person_id, LeadGenerated.inquiry_date)
-    leads_q = apply_filters(leads_q, LeadGenerated.person_id, LeadGenerated.inquiry_date, employee, start_date, end_date, db=db)
+    leads_q = apply_filters(leads_q, LeadGenerated.person_id, LeadGenerated.inquiry_date, **fkw)
     leads_records = leads_q.all()
 
     total_pr = len(pr_records)

@@ -48,6 +48,7 @@ def get_employees(db: Session = Depends(get_db)):
         {
             "id": p.id,
             "name": p.short_name or p.full_name,
+            "short_name": p.short_name,
             "full_name": p.full_name,
             "color": PERSON_COLORS.get(p.short_name, "#666"),
         }

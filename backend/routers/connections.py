@@ -16,12 +16,14 @@ def get_connections(
     employee: str = Query("all"),
     start_date: str = Query(None),
     end_date: str = Query(None),
+    period: str = Query(None),
     db: Session = Depends(get_db),
 ):
+    fkw = dict(employee=employee, start_date=start_date, end_date=end_date, period=period)
     base = db.query(TargetTracking, Person.short_name)\
         .join(Person, TargetTracking.person_id == Person.id)\
         .filter(TargetTracking.activity_date.isnot(None))
-    base = apply_filters(base, TargetTracking.person_id, TargetTracking.activity_date, employee, start_date, end_date, db=db)
+    base = apply_filters(base, TargetTracking.person_id, TargetTracking.activity_date, **fkw)
     results = base.all()
     logger.info(f"Connections: {len(results)} rows")
 

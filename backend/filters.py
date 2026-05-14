@@ -1,46 +1,94 @@
-from datetime import date
+from datetime import date, timedelta
 import logging
 
 logger = logging.getLogger(__name__)
 
-_name_to_id_cache = {}
+PERIOD_PRESETS = {
+    "today", "yesterday", "this_week", "last_week",
+    "this_month", "last_month", "this_quarter", "last_quarter",
+    "this_year", "last_year", "all_time", "custom",
+}
 
 
-def _resolve_person_id(db, employee):
-    """Resolve employee name or id string to integer person_id."""
-    try:
-        return int(employee)
-    except (ValueError, TypeError):
-        pass
-    if employee in _name_to_id_cache:
-        return _name_to_id_cache[employee]
-    from models import Person
-    person = db.query(Person).filter(Person.short_name == employee).first()
-    if person:
-        _name_to_id_cache[employee] = person.id
-        return person.id
-    logger.warning(f"Could not resolve employee: {employee}")
-    return None
+def resolve_period(period: str):
+    if not period or period in ("all_time", "all", "custom"):
+        return None, None
+
+    today = date.today()
+
+    if period == "today":
+        return today, today
+
+    if period == "yesterday":
+        y = today - timedelta(days=1)
+        return y, y
+
+    if period == "this_week":
+        start = today - timedelta(days=today.weekday())
+        return start, today
+
+    if period == "last_week":
+        end = today - timedelta(days=today.weekday()) - timedelta(days=1)
+        start = end - timedelta(days=6)
+        return start, end
+
+    if period == "this_month":
+        return today.replace(day=1), today
+
+    if period == "last_month":
+        first_of_this = today.replace(day=1)
+        end = first_of_this - timedelta(days=1)
+        start = end.replace(day=1)
+        return start, end
+
+    if period == "this_quarter":
+        q_start_month = ((today.month - 1) // 3) * 3 + 1
+        return today.replace(month=q_start_month, day=1), today
+
+    if period == "last_quarter":
+        q_start_month = ((today.month - 1) // 3) * 3 + 1
+        q_start = today.replace(month=q_start_month, day=1)
+        end = q_start - timedelta(days=1)
+        lq_start_month = ((end.month - 1) // 3) * 3 + 1
+        start = end.replace(month=lq_start_month, day=1)
+        return start, end
+
+    if period == "this_year":
+        return today.replace(month=1, day=1), today
+
+    if period == "last_year":
+        start = today.replace(year=today.year - 1, month=1, day=1)
+        end = today.replace(year=today.year - 1, month=12, day=31)
+        return start, end
+
+    return None, None
 
 
-def apply_filters(query, person_id_col, date_col, employee=None, start_date=None, end_date=None, db=None):
+def apply_filters(query, person_id_col, date_col, employee=None,
+                  start_date=None, end_date=None, period=None, **_kwargs):
     if employee and employee != "all":
-        pid = _resolve_person_id(db, employee) if db else None
-        if pid is None:
-            try:
-                pid = int(employee)
-            except (ValueError, TypeError):
-                pass
-        if pid is not None:
-            query = query.filter(person_id_col == pid)
-    if start_date:
         try:
-            query = query.filter(date_col >= date.fromisoformat(start_date))
+            query = query.filter(person_id_col == int(employee))
         except (ValueError, TypeError):
-            logger.warning(f"Invalid start_date: {start_date}")
-    if end_date:
-        try:
-            query = query.filter(date_col <= date.fromisoformat(end_date))
-        except (ValueError, TypeError):
-            logger.warning(f"Invalid end_date: {end_date}")
+            pass
+
+    p_start, p_end = resolve_period(period) if period else (None, None)
+    d_start = p_start or (_parse_date(start_date) if start_date else None)
+    d_end = p_end or (_parse_date(end_date) if end_date else None)
+
+    if d_start:
+        query = query.filter(date_col >= d_start)
+    if d_end:
+        query = query.filter(date_col <= d_end)
+
     return query
+
+
+def _parse_date(val):
+    if not val:
+        return None
+    try:
+        return date.fromisoformat(val)
+    except (ValueError, TypeError):
+        logger.warning(f"Invalid date: {val}")
+        return None

@@ -26,7 +26,7 @@ export default function PositiveResponses() {
     return <div className="text-center text-content-muted py-20">No data available</div>
   }
 
-  const { kpis, by_employee_stacked, quality_distribution, monthly_trend, recent_responses, has_detail_data } = data
+  const { kpis, by_employee_stacked, quality_distribution, monthly_trend, recent_responses, all_responses, has_detail_data } = data
 
   const qualityBadge = (quality) => {
     const q = (quality || '').toLowerCase()
@@ -88,37 +88,43 @@ export default function PositiveResponses() {
       </div>
 
       <div className="bg-surface-card border border-edge rounded-xl p-5">
-        <h3 className="text-base font-semibold text-content mb-4">Recent Responses</h3>
-        <div className="overflow-x-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-base font-semibold text-content">All Responses</h3>
+          <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 font-medium">
+            {(all_responses || recent_responses || []).length} responses
+          </span>
+        </div>
+        <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
           <table className="w-full text-sm">
-            <thead>
+            <thead className="sticky top-0 bg-surface-card z-10">
               <tr className="text-content-muted border-b border-edge">
                 <th className="text-left py-3 px-4 font-medium">Date</th>
                 <th className="text-left py-3 px-4 font-medium">Client</th>
-                <th className="text-left py-3 px-4 font-medium">Company</th>
-                <th className="text-left py-3 px-4 font-medium">Location</th>
                 <th className="text-left py-3 px-4 font-medium">Quality</th>
                 <th className="text-left py-3 px-4 font-medium">Employee</th>
               </tr>
             </thead>
             <tbody>
-              {recent_responses.length > 0 ? recent_responses.map((row, i) => {
+              {(all_responses || recent_responses || []).length > 0 ? (all_responses || recent_responses).map((row, i) => {
                 const badge = qualityBadge(row.quality)
                 return (
                   <tr key={i} className="border-b border-edge/50 hover:bg-surface-hover">
                     <td className="py-3 px-4 text-content-muted">{fmtDate(row.date)}</td>
                     <td className="py-3 px-4 text-content">{row.client_name || '-'}</td>
-                    <td className="py-3 px-4 text-content">{row.company || '-'}</td>
-                    <td className="py-3 px-4 text-content-muted">{row.location || '-'}</td>
                     <td className="py-3 px-4">
                       <span className={`text-xs px-2 py-1 rounded-full ${badge.bg} ${badge.text}`}>{badge.label}</span>
                     </td>
-                    <td className="py-3 px-4 text-content">{row.employee}</td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: row.color || '#666' }} />
+                        <span className="text-content">{row.employee}</span>
+                      </div>
+                    </td>
                   </tr>
                 )
               }) : (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-content-muted">No recent responses</td>
+                  <td colSpan={4} className="py-8 text-center text-content-muted">No responses found</td>
                 </tr>
               )}
             </tbody>

@@ -10,7 +10,7 @@ export function fmtDate(s) {
   if (!s) return '-'
   const d = new Date(s)
   if (isNaN(d)) return s
-  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
 }
 
 export function fmtMonth(s) {

@@ -8,7 +8,7 @@ import { useTheme } from '../context/ThemeContext'
 import { useFilters } from '../context/FilterContext'
 import api from '../api/api'
 
-export default function DataTable({ endpoint, columns, defaultSort, defaultSortDir = 'desc', pageSize = 50, title }) {
+export default function DataTable({ endpoint, columns, defaultSort, defaultSortDir = 'desc', pageSize = 50, title, dateFrom: propDateFrom, dateTo: propDateTo }) {
   const { isDark } = useTheme()
   const { employee, startDate, endDate } = useFilters()
   const [page, setPage] = useState(1)
@@ -23,15 +23,15 @@ export default function DataTable({ endpoint, columns, defaultSort, defaultSortD
     return () => clearTimeout(t)
   }, [search])
 
-  useEffect(() => { setPage(1) }, [employee, startDate, endDate, debouncedSearch])
+  useEffect(() => { setPage(1) }, [employee, startDate, endDate, debouncedSearch, propDateFrom, propDateTo])
 
   const queryParams = useMemo(() => ({
     page, limit: pageSize, sort, order,
     person: employee || 'all',
-    date_from: startDate || undefined,
-    date_to: endDate || undefined,
+    date_from: propDateFrom || startDate || undefined,
+    date_to: propDateTo || endDate || undefined,
     search: debouncedSearch || undefined,
-  }), [page, pageSize, sort, order, employee, startDate, endDate, debouncedSearch])
+  }), [page, pageSize, sort, order, employee, startDate, endDate, debouncedSearch, propDateFrom, propDateTo])
 
   const { data: result, isLoading } = useQuery({
     queryKey: ['data-table', endpoint, queryParams],

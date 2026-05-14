@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _base_query(db, employee, start_date, end_date, db=db):
+def _base_query(db, employee, start_date, end_date):
     base = db.query(TargetTracking, Person.short_name)\
         .join(Person, TargetTracking.person_id == Person.id)\
         .filter(TargetTracking.activity_date.isnot(None))
@@ -176,19 +176,19 @@ def get_drilldown(
 
     if metric == "positive_responses":
         dd = _detail_table_drilldown(db, PositiveResponse, "response_date", employee, start_date, end_date, person_map)
-        recent = _get_recent(db, metric, employee, start_date, end_date, db=db)
+        recent = _get_recent(db, metric, employee, start_date, end_date)
         return {"metric": metric, "title": "Positive Responses", **dd, "recent": recent}
 
     if metric == "leads":
         dd = _detail_table_drilldown(db, LeadGenerated, "inquiry_date", employee, start_date, end_date, person_map)
-        recent = _get_recent(db, metric, employee, start_date, end_date, db=db)
+        recent = _get_recent(db, metric, employee, start_date, end_date)
         return {"metric": metric, "title": "Leads Generated", **dd, "recent": recent}
 
     if metric not in METRIC_MAP:
         return {"error": f"Unknown metric: {metric}"}
 
     field, title = METRIC_MAP[metric]
-    base = _base_query(db, employee, start_date, end_date, db=db)
+    base = _base_query(db, employee, start_date, end_date)
     results = base.order_by(TargetTracking.activity_date).all()
 
     if not results:
@@ -199,7 +199,7 @@ def get_drilldown(
             "by_employee": [], "employee_daily": [], "recent": [],
         }
 
-    recent = _get_recent(db, metric, employee, start_date, end_date, db=db)
+    recent = _get_recent(db, metric, employee, start_date, end_date)
 
     return {
         "metric": metric,
@@ -215,7 +215,7 @@ def get_drilldown(
 
 
 def _drilldown_response_rate(db, employee, start_date, end_date, person_map):
-    base = _base_query(db, employee, start_date, end_date, db=db)
+    base = _base_query(db, employee, start_date, end_date)
     results = base.order_by(TargetTracking.activity_date).all()
 
     pr_q = db.query(PositiveResponse.person_id, PositiveResponse.response_date)
@@ -283,7 +283,7 @@ def _drilldown_response_rate(db, employee, start_date, end_date, person_map):
     }
 
 
-def _get_recent(db, metric, employee, start_date, end_date, db=db):
+def _get_recent(db, metric, employee, start_date, end_date):
     if metric == "connections":
         base = db.query(LinkedinConnection, Person.short_name)\
             .join(Person, LinkedinConnection.person_id == Person.id)

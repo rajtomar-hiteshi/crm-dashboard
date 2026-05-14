@@ -21,19 +21,19 @@ def get_positive_responses(
     base = db.query(TargetTracking, Person.short_name)\
         .join(Person, TargetTracking.person_id == Person.id)\
         .filter(TargetTracking.activity_date.isnot(None))
-    base = apply_filters(base, TargetTracking.person_id, TargetTracking.activity_date, employee, start_date, end_date)
+    base = apply_filters(base, TargetTracking.person_id, TargetTracking.activity_date, employee, start_date, end_date, db=db)
     results = base.all()
 
     detail_base = db.query(PositiveResponse, Person.short_name)\
         .join(Person, PositiveResponse.person_id == Person.id)
-    detail_base = apply_filters(detail_base, PositiveResponse.person_id, PositiveResponse.response_date, employee, start_date, end_date)
+    detail_base = apply_filters(detail_base, PositiveResponse.person_id, PositiveResponse.response_date, employee, start_date, end_date, db=db)
     detail_results = detail_base.order_by(PositiveResponse.response_date.desc()).all()
     total_pr = len(detail_results)
     has_detail_data = total_pr > 0
     logger.info(f"PositiveResponses: {len(results)} tt rows, {total_pr} actual PR records")
 
     leads_q = db.query(LeadGenerated.person_id, LeadGenerated.inquiry_date)
-    leads_q = apply_filters(leads_q, LeadGenerated.person_id, LeadGenerated.inquiry_date, employee, start_date, end_date)
+    leads_q = apply_filters(leads_q, LeadGenerated.person_id, LeadGenerated.inquiry_date, employee, start_date, end_date, db=db)
     leads_records = leads_q.all()
 
     if not results and not has_detail_data:

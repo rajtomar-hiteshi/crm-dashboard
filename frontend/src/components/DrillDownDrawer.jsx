@@ -1,19 +1,154 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, ChevronRight, Calendar, Users, TrendingUp, Table2, Activity, Loader2, BarChart3 } from 'lucide-react'
+import { X, ChevronRight, Calendar, Users, TrendingUp, Table2, Activity, Loader2, BarChart3, Database } from 'lucide-react'
 import { useDrilldown } from '../hooks/useApi'
 import { useFilters } from '../context/FilterContext'
 import MultiLineChart from './charts/MultiLineChart'
 import VerticalBarChart from './charts/VerticalBarChart'
 import StackedAreaChart from './charts/StackedAreaChart'
+import DataTable from './DataTable'
 import { fmtNum, fmtDate, fmtPct, fmtMonth, fmtChartDate } from '../utils/formatters'
 
 const TABS = [
+  { id: 'data', label: 'Full Data', icon: Database },
   { id: 'overview', label: 'Overview', icon: Activity },
   { id: 'daily', label: 'Daily', icon: Calendar },
   { id: 'monthly', label: 'Monthly', icon: BarChart3 },
   { id: 'employees', label: 'By Employee', icon: Users },
   { id: 'recent', label: 'Recent Activity', icon: Table2 },
 ]
+
+const METRIC_TABLE_CONFIG = {
+  connections: {
+    endpoint: 'linkedin-connections',
+    title: 'All LinkedIn Connections',
+    defaultSort: 'activity_date',
+    columns: [
+      { key: 'activity_date', label: 'Date', sortable: true },
+      { key: 'short_name', label: 'Person', sortable: true },
+      { key: 'client_linkedin_url', label: 'Client LinkedIn URL', type: 'link', sortable: true },
+      { key: 'linkedin_account_used', label: 'Account Used', sortable: true },
+      { key: 'connection_message', label: 'Connection Message', type: 'longtext', sortable: false },
+      { key: 'geography', label: 'Geography', sortable: true },
+      { key: 'company_size', label: 'Company Size', sortable: true },
+      { key: 'industry', label: 'Industry', sortable: true },
+      { key: 'cadence_sequence', label: 'Cadence', sortable: true },
+      { key: 'accepted', label: 'Accepted', sortable: true },
+      { key: 'filter_link', label: 'Filter Link', sortable: false },
+      { key: 'response_received', label: 'Response', sortable: true },
+      { key: 'comments', label: 'Comments', type: 'longtext', sortable: false },
+    ],
+  },
+  followups: {
+    endpoint: 'linkedin-followups',
+    title: 'All Follow-Up Records',
+    defaultSort: 'activity_date',
+    columns: [
+      { key: 'activity_date', label: 'Date', sortable: true },
+      { key: 'short_name', label: 'Person', sortable: true },
+      { key: 'client_linkedin_url', label: 'Client LinkedIn URL', type: 'link', sortable: true },
+      { key: 'linkedin_account_used', label: 'Account Used', sortable: true },
+      { key: 'follow_up_type', label: 'Follow Up Type', sortable: true },
+      { key: 'message_sent', label: 'Message Sent', type: 'longtext', sortable: false },
+      { key: 'filter_value', label: 'Filter', sortable: true },
+      { key: 'cadence', label: 'Cadence', sortable: true },
+      { key: 'response_received', label: 'Response', sortable: true },
+    ],
+  },
+  inmails: {
+    endpoint: 'linkedin-inmails',
+    title: 'All InMail Records',
+    defaultSort: 'activity_date',
+    columns: [
+      { key: 'activity_date', label: 'Date', sortable: true },
+      { key: 'short_name', label: 'Person', sortable: true },
+      { key: 'client_linkedin_url', label: 'Client LinkedIn URL', type: 'link', sortable: true },
+      { key: 'linkedin_account_used', label: 'Account Used', sortable: true },
+      { key: 'inmail_message_sent', label: 'InMail Message', type: 'longtext', sortable: false },
+      { key: 'geography', label: 'Geography', sortable: true },
+      { key: 'company_size', label: 'Company Size', sortable: true },
+      { key: 'industry', label: 'Industry', sortable: true },
+      { key: 'filter_value', label: 'Filter', sortable: true },
+      { key: 'cadence', label: 'Cadence', sortable: true },
+    ],
+  },
+  positive_responses: {
+    endpoint: 'positive-responses',
+    title: 'All Positive Responses',
+    defaultSort: 'response_date',
+    columns: [
+      { key: 'response_date', label: 'Response Date', sortable: true },
+      { key: 'short_name', label: 'Person', sortable: true },
+      { key: 'client_type', label: 'Client Type', sortable: true },
+      { key: 'client_name', label: 'Client Name', sortable: true },
+      { key: 'client_linkedin_id', label: 'Client LinkedIn ID', type: 'link', sortable: true },
+      { key: 'linkedin_id_associated', label: 'LinkedIn ID Associated', sortable: true },
+      { key: 'connected_date', label: 'Connected Date', sortable: true },
+      { key: 'first_follow_up', label: 'First Follow Up', sortable: true },
+      { key: 'num_follow_ups_taken', label: 'Follow Ups Taken', sortable: true },
+      { key: 'num_gap_days', label: 'Gap Days', sortable: true },
+      { key: 'response_quality', label: 'Response Quality', type: 'badge', sortable: true },
+      { key: 'client_first_revert', label: 'Client First Revert', type: 'longtext', sortable: false },
+      { key: 'chat_summary', label: 'Chat Summary', type: 'longtext', sortable: false },
+      { key: 'source', label: 'Source', sortable: true },
+    ],
+  },
+  leads: {
+    endpoint: 'leads-generated',
+    title: 'All Lead Records',
+    defaultSort: 'inquiry_date',
+    columns: [
+      { key: 'inquiry_date', label: 'Inquiry Date', sortable: true },
+      { key: 'short_name', label: 'Person', sortable: true },
+      { key: 'client_name', label: 'Client Name', sortable: true },
+      { key: 'company_name', label: 'Company', sortable: true },
+      { key: 'client_location', label: 'Location', sortable: true },
+      { key: 'company_size', label: 'Company Size', sortable: true },
+      { key: 'client_designation', label: 'Designation', sortable: true },
+      { key: 'client_linkedin_url', label: 'LinkedIn URL', type: 'link', sortable: true },
+      { key: 'client_email', label: 'Email', type: 'email', sortable: true },
+      { key: 'client_contact_number', label: 'Phone', type: 'phone', sortable: true },
+      { key: 'summary', label: 'Summary', type: 'longtext', sortable: false },
+      { key: 'next_step', label: 'Next Step', type: 'longtext', sortable: false },
+      { key: 'lead_source', label: 'Lead Source', sortable: true },
+      { key: 'account', label: 'Account', sortable: true },
+      { key: 'current_status', label: 'Status', type: 'badge', sortable: true },
+    ],
+  },
+  response_rate: {
+    endpoint: 'positive-responses',
+    title: 'Positive Responses (Response Rate)',
+    defaultSort: 'response_date',
+    columns: [
+      { key: 'response_date', label: 'Response Date', sortable: true },
+      { key: 'short_name', label: 'Person', sortable: true },
+      { key: 'client_type', label: 'Client Type', sortable: true },
+      { key: 'client_name', label: 'Client Name', sortable: true },
+      { key: 'client_linkedin_id', label: 'Client LinkedIn ID', type: 'link', sortable: true },
+      { key: 'response_quality', label: 'Response Quality', type: 'badge', sortable: true },
+      { key: 'chat_summary', label: 'Chat Summary', type: 'longtext', sortable: false },
+      { key: 'source', label: 'Source', sortable: true },
+    ],
+  },
+  emails: {
+    endpoint: 'emails',
+    title: 'All Email Records',
+    defaultSort: 'activity_date',
+    columns: [
+      { key: 'activity_date', label: 'Date', sortable: true },
+      { key: 'short_name', label: 'Person', sortable: true },
+      { key: 'client_name', label: 'Client Name', sortable: true },
+      { key: 'client_email', label: 'Client Email', type: 'email', sortable: true },
+      { key: 'client_linkedin_url', label: 'LinkedIn URL', type: 'link', sortable: true },
+      { key: 'company_name', label: 'Company', sortable: true },
+      { key: 'email_content_sent', label: 'Email Content', type: 'longtext', sortable: false },
+      { key: 'opportunity_url', label: 'Opportunity URL', type: 'link', sortable: false },
+      { key: 'contact_number', label: 'Contact Number', type: 'phone', sortable: true },
+      { key: 'reason', label: 'Reason', sortable: true },
+      { key: 'next_step', label: 'Next Step', type: 'longtext', sortable: false },
+      { key: 'cadence', label: 'Cadence', sortable: true },
+    ],
+  },
+}
 
 const RECENT_COLUMNS = {
   connections: [
@@ -61,7 +196,7 @@ export default function DrillDownDrawer({ isOpen, onClose, metric, title, color 
   const { employee, setEmployee } = useFilters()
 
   useEffect(() => {
-    if (isOpen) setTab('overview')
+    if (isOpen) setTab('data')
   }, [isOpen, metric])
 
   useEffect(() => {
@@ -361,7 +496,22 @@ export default function DrillDownDrawer({ isOpen, onClose, metric, title, color 
     )
   }
 
+  const renderData = () => {
+    const cfg = METRIC_TABLE_CONFIG[metric]
+    if (!cfg) return <p className="text-content-muted text-sm text-center py-10">No data table available for this metric</p>
+    return (
+      <DataTable
+        endpoint={cfg.endpoint}
+        title={cfg.title}
+        defaultSort={cfg.defaultSort}
+        columns={cfg.columns}
+      />
+    )
+  }
+
   const renderContent = () => {
+    if (tab === 'data') return renderData()
+
     if (isLoading) {
       return (
         <div className="flex items-center justify-center h-64">
@@ -379,7 +529,7 @@ export default function DrillDownDrawer({ isOpen, onClose, metric, title, color 
       case 'monthly': return renderMonthly()
       case 'employees': return renderEmployees()
       case 'recent': return renderRecent()
-      default: return renderOverview()
+      default: return renderData()
     }
   }
 
@@ -392,8 +542,10 @@ export default function DrillDownDrawer({ isOpen, onClose, metric, title, color 
       />
       <div
         ref={drawerRef}
-        className="fixed top-0 right-0 h-full w-full max-w-2xl z-50 flex flex-col drawer-slide-in"
+        className="fixed top-0 right-0 h-full z-50 flex flex-col drawer-slide-in"
         style={{
+          width: '70vw',
+          maxWidth: '70vw',
           background: '#0f172a',
           border: '1px solid rgba(255, 255, 255, 0.08)',
           borderRadius: '20px 0 0 20px',

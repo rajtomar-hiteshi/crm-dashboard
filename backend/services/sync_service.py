@@ -435,10 +435,17 @@ def get_drive_service():
 
 
 def download_file(service, file_id, dest_path):
-    request = service.files().export_media(
-        fileId=file_id,
-        mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
+    file_meta = service.files().get(fileId=file_id, fields='mimeType,name').execute()
+    mime_type = file_meta.get('mimeType', '')
+
+    if mime_type == 'application/vnd.google-apps.spreadsheet':
+        request = service.files().export_media(
+            fileId=file_id,
+            mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+    else:
+        request = service.files().get_media(fileId=file_id)
+
     with open(dest_path, 'wb') as fh:
         downloader = MediaIoBaseDownload(fh, request)
         done = False

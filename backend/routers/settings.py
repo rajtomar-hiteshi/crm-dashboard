@@ -19,6 +19,25 @@ from helpers import PERSON_COLORS, safe_int
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/settings")
 
+SERVICE_ACCOUNT_EMAIL = "leadgen-sync@leadgen-crm-496210.iam.gserviceaccount.com"
+
+
+def extract_file_id(url_or_id: str) -> str:
+    url_or_id = url_or_id.strip()
+    if "/" not in url_or_id and len(url_or_id) > 20:
+        return url_or_id
+    m = re.search(r"/spreadsheets/d/([a-zA-Z0-9_-]+)", url_or_id)
+    if m:
+        return m.group(1)
+    m = re.search(r"/file/d/([a-zA-Z0-9_-]+)", url_or_id)
+    if m:
+        return m.group(1)
+    m = re.search(r"[?&]id=([a-zA-Z0-9_-]+)", url_or_id)
+    if m:
+        return m.group(1)
+    return url_or_id
+
+
 KNOWN_WORKSHEET_PATTERNS = {
     "target_tracking": {
         "patterns": ["target tracking", "target", "daily tracking"],
@@ -163,17 +182,25 @@ def search_drive(body: dict, db: Session = Depends(get_db)):
 
 @router.post("/scan-file")
 def scan_file(body: dict, db: Session = Depends(get_db)):
-    drive_file_id = body.get("drive_file_id", "").strip()
+    raw_id = body.get("drive_file_id", "").strip()
     file_type = body.get("file_type", "CURRENT")
 
-    if not drive_file_id:
+    if not raw_id:
         raise HTTPException(status_code=400, detail="drive_file_id is required")
+
+    drive_file_id = extract_file_id(raw_id)
 
     try:
         gc = _get_gspread_client()
         spreadsheet = gc.open_by_key(drive_file_id)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Could not open file: {str(e)}")
+        err = str(e)
+        if "404" in err or "not found" in err.lower():
+            raise HTTPException(
+                status_code=404,
+                detail=f"File not found. Please share the Google Sheet with the service account email: {SERVICE_ACCOUNT_EMAIL}",
+            )
+        raise HTTPException(status_code=400, detail=f"Could not open file: {err}")
 
     worksheets = []
     for ws in spreadsheet.worksheets():
@@ -242,7 +269,7 @@ def add_person(body: dict, db: Session = Depends(get_db)):
     import_results = []
 
     for file_info in files_data:
-        drive_file_id = file_info.get("drive_file_id", "")
+        drive_file_id = extract_file_id(file_info.get("drive_file_id", ""))
         file_type = file_info.get("file_type", "CURRENT")
         approved_worksheets = file_info.get("worksheets_approved", [])
 
@@ -691,7 +718,7 @@ def add_file_to_person(person_id: int, body: dict, db: Session = Depends(get_db)
     if not person:
         raise HTTPException(status_code=404, detail="Person not found")
 
-    drive_file_id = body.get("drive_file_id", "").strip()
+    drive_file_id = extract_file_id(body.get("drive_file_id", "").strip())
     file_type = body.get("file_type", "CURRENT")
     worksheets_approved = body.get("worksheets_approved", [])
 
@@ -703,7 +730,13 @@ def add_file_to_person(person_id: int, body: dict, db: Session = Depends(get_db)
         spreadsheet = gc.open_by_key(drive_file_id)
         file_name = spreadsheet.title
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Could not open file: {str(e)}")
+        err = str(e)
+        if "404" in err or "not found" in err.lower():
+            raise HTTPException(
+                status_code=404,
+                detail=f"File not found. Please share the Google Sheet with: {SERVICE_ACCOUNT_EMAIL}",
+            )
+        raise HTTPException(status_code=400, detail=f"Could not open file: {err}")
 
     sf = SourceFile(
         person_id=person_id, file_name=file_name,

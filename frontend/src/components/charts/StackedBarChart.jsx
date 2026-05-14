@@ -6,23 +6,26 @@ import { useTheme } from '../../context/ThemeContext'
 import { fmtNum, fmtMonth, fmtChartDate } from '../../utils/formatters'
 
 const COLORS = ['#3B82F6', '#06B6D4', '#10B981', '#F59E0B', '#8B5CF6', '#EF4444', '#F97316']
-const MAX_TICKS = 12
+
+function getTickInterval(dataLength) {
+  if (dataLength <= 7) return 0
+  if (dataLength <= 14) return 1
+  if (dataLength <= 30) return Math.ceil(dataLength / 7) - 1
+  return Math.ceil(dataLength / 10) - 1
+}
 
 export default function StackedBarChart({ data, bars, xKey = 'date', height = 300 }) {
   const { chartColors } = useTheme()
   const isDate = xKey === 'date'
-
-  /* Show at most ~MAX_TICKS labels so the x-axis stays readable */
-  const tickInterval = isDate && data.length > MAX_TICKS
-    ? Math.ceil(data.length / MAX_TICKS) - 1
-    : 0
+  const isMonth = xKey === 'month'
+  const tickInterval = isDate ? getTickInterval(data.length) : isMonth ? 0 : 0
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (!active || !payload) return null
     return (
       <div className="rounded-lg p-3 shadow-xl border" style={{ background: chartColors.tooltipBg, borderColor: chartColors.tooltipBorder }}>
         <p className="text-sm font-medium mb-2" style={{ color: chartColors.tooltipText }}>
-          {xKey === 'month' ? fmtMonth(label) : isDate ? fmtChartDate(label) : label}
+          {isMonth ? fmtMonth(label) : isDate ? fmtChartDate(label) : label}
         </p>
         {payload.map((entry, i) => (
           <div key={i} className="flex items-center gap-2 text-xs">
@@ -44,9 +47,9 @@ export default function StackedBarChart({ data, bars, xKey = 'date', height = 30
           stroke={chartColors.axis}
           fontSize={11}
           tickLine={false}
-          tickFormatter={xKey === 'month' ? fmtMonth : isDate ? fmtChartDate : undefined}
+          tickFormatter={isMonth ? fmtMonth : isDate ? fmtChartDate : undefined}
           interval={tickInterval}
-          {...(isDate ? { angle: -45, textAnchor: 'end' } : {})}
+          {...(isDate ? { angle: -45, textAnchor: 'end', dy: 10 } : {})}
         />
         <YAxis stroke={chartColors.axis} fontSize={12} tickLine={false} />
         <Tooltip content={<CustomTooltip />} />

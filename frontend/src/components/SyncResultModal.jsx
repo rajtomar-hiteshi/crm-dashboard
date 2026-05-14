@@ -31,10 +31,10 @@ export default function SyncResultModal({ result, onClose }) {
         <div
           className="w-full max-w-lg max-h-[85vh] flex flex-col"
           style={{
-            background: '#0f172a',
-            border: '1px solid rgba(255,255,255,0.08)',
+            background: isDark ? '#0f172a' : '#FFFFFF',
+            border: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid #E2E8F0',
             borderRadius: '20px',
-            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
+            boxShadow: isDark ? '0 25px 50px -12px rgba(0,0,0,0.5)' : '0 25px 50px -12px rgba(0,0,0,0.15)',
             overflow: 'hidden',
           }}
           onClick={e => e.stopPropagation()}

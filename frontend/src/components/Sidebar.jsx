@@ -34,8 +34,8 @@ export default function Sidebar({ onNavigate, currentPath }) {
             <Zap className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-lg font-bold text-content leading-tight">Lead Gen</h1>
-            <p className="text-xs text-content-muted leading-tight">Intelligence Platform</p>
+            <h1 className="text-lg font-bold text-content leading-tight">Hiteshi</h1>
+            <p className="text-xs text-content-muted leading-tight">CRM Dashboard</p>
           </div>
         </div>
       </div>
@@ -63,7 +63,7 @@ export default function Sidebar({ onNavigate, currentPath }) {
         </div>
       </nav>
       <div className="p-4 border-t border-edge">
-        <p className="text-xs text-content-faint text-center">Lead Gen CRM v1.0</p>
+        <p className="text-xs text-content-faint text-center">Hiteshi CRM v1.0</p>
       </div>
     </aside>
   )

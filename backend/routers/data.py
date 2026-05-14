@@ -116,7 +116,10 @@ def _build_query(db: Session, cfg: dict, person: str, date_from: str, date_to: s
     q = db.query(Model, Person.short_name).join(Person, Model.person_id == Person.id)
 
     if person and person != "all":
-        q = q.filter(Person.short_name == person)
+        try:
+            q = q.filter(Model.person_id == int(person))
+        except (ValueError, TypeError):
+            q = q.filter(Person.short_name == person)
 
     date_col_name = cfg["date_col"]
     if date_col_name:

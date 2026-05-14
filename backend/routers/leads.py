@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import TargetTracking, Person, LeadGenerated
+from models import TargetTracking, Person, LeadGenerated, PositiveResponse
 from filters import apply_filters
 from helpers import PERSON_COLORS, safe_int
 
@@ -21,16 +21,20 @@ def get_leads(
     base = db.query(TargetTracking, Person.short_name)\
         .join(Person, TargetTracking.person_id == Person.id)\
         .filter(TargetTracking.activity_date.isnot(None))
-    base = apply_filters(base, Person.short_name, TargetTracking.activity_date, employee, start_date, end_date)
+    base = apply_filters(base, TargetTracking.person_id, TargetTracking.activity_date, employee, start_date, end_date)
     results = base.all()
-    logger.info(f"Leads: {len(results)} rows from target_tracking")
 
     lead_base = db.query(LeadGenerated, Person.short_name)\
         .join(Person, LeadGenerated.person_id == Person.id)
-    lead_base = apply_filters(lead_base, Person.short_name, LeadGenerated.inquiry_date, employee, start_date, end_date)
+    lead_base = apply_filters(lead_base, LeadGenerated.person_id, LeadGenerated.inquiry_date, employee, start_date, end_date)
     pipeline_results = lead_base.order_by(LeadGenerated.inquiry_date.desc()).all()
     has_pipeline_data = len(pipeline_results) > 0
-    logger.info(f"Leads: {len(pipeline_results)} pipeline records")
+    total_leads = len(pipeline_results)
+    logger.info(f"Leads: {len(results)} tt rows, {total_leads} pipeline records")
+
+    pr_q = db.query(PositiveResponse.person_id, PositiveResponse.response_date)
+    pr_q = apply_filters(pr_q, PositiveResponse.person_id, PositiveResponse.response_date, employee, start_date, end_date)
+    pr_records = pr_q.all()
 
     if not results and not has_pipeline_data:
         return {
@@ -39,28 +43,26 @@ def get_leads(
             "conversion_by_employee": [], "all_leads": [], "has_pipeline_data": False,
         }
 
-    # Build base emp_data from target_tracking (connections, positive_responses)
     emp_data = {}
     for r, name in results:
         if name not in emp_data:
             emp_data[name] = {"leads": 0, "conn": 0, "pr": 0}
         emp_data[name]["conn"] += safe_int(r.linkedin_connections)
-        emp_data[name]["pr"] += safe_int(r.positive_responses)
 
-    # Use pipeline (leads_generated table) for lead counts when available,
-    # otherwise fall back to target_tracking.leads_generated text sums
-    if has_pipeline_data:
-        pipeline_emp_counts = {}
-        for lead, name in pipeline_results:
-            pipeline_emp_counts[name] = pipeline_emp_counts.get(name, 0) + 1
-        for name in emp_data:
-            emp_data[name]["leads"] = pipeline_emp_counts.get(name, 0)
-        # Include employees who appear in pipeline but not in target_tracking
-        for name, count in pipeline_emp_counts.items():
-            if name not in emp_data:
-                emp_data[name] = {"leads": count, "conn": 0, "pr": 0}
-        total_leads = sum(pipeline_emp_counts.values())
-    else:
+    pipeline_emp_counts = {}
+    for lead, name in pipeline_results:
+        pipeline_emp_counts[name] = pipeline_emp_counts.get(name, 0) + 1
+    for name in emp_data:
+        emp_data[name]["leads"] = pipeline_emp_counts.get(name, 0)
+    for name, count in pipeline_emp_counts.items():
+        if name not in emp_data:
+            emp_data[name] = {"leads": count, "conn": 0, "pr": 0}
+
+    pr_by_name = {}
+    for pid, _ in pr_records:
+        pr_by_name[pid] = pr_by_name.get(pid, 0) + 1
+
+    if not has_pipeline_data:
         for r, name in results:
             emp_data[name]["leads"] += safe_int(r.leads_generated)
         total_leads = sum(d["leads"] for d in emp_data.values())
@@ -99,26 +101,27 @@ def get_leads(
 
     monthly = {}
     if has_pipeline_data:
-        # Use pipeline records for lead counts in monthly trend
         for lead, name in pipeline_results:
             if lead.inquiry_date:
                 key = lead.inquiry_date.strftime("%Y-%m")
                 if key not in monthly:
                     monthly[key] = {"month": key, "leads": 0, "positive_responses": 0}
                 monthly[key]["leads"] += 1
-        # Merge positive_responses from target_tracking
-        for r, name in results:
-            key = r.activity_date.strftime("%Y-%m")
-            if key not in monthly:
-                monthly[key] = {"month": key, "leads": 0, "positive_responses": 0}
-            monthly[key]["positive_responses"] += safe_int(r.positive_responses)
+        pr_monthly = {}
+        for pid, rdate in pr_records:
+            if rdate:
+                m = rdate.strftime("%Y-%m")
+                pr_monthly[m] = pr_monthly.get(m, 0) + 1
+        for m in set(monthly.keys()) | set(pr_monthly.keys()):
+            if m not in monthly:
+                monthly[m] = {"month": m, "leads": 0, "positive_responses": 0}
+            monthly[m]["positive_responses"] = pr_monthly.get(m, 0)
     else:
         for r, name in results:
             key = r.activity_date.strftime("%Y-%m")
             if key not in monthly:
                 monthly[key] = {"month": key, "leads": 0, "positive_responses": 0}
             monthly[key]["leads"] += safe_int(r.leads_generated)
-            monthly[key]["positive_responses"] += safe_int(r.positive_responses)
     monthly_trend = sorted(monthly.values(), key=lambda x: x["month"])
 
     conversion_by_employee = [

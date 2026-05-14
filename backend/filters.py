@@ -4,9 +4,12 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def apply_filters(query, employee_col, date_col, employee=None, start_date=None, end_date=None):
+def apply_filters(query, person_id_col, date_col, employee=None, start_date=None, end_date=None):
     if employee and employee != "all":
-        query = query.filter(employee_col == employee)
+        try:
+            query = query.filter(person_id_col == int(employee))
+        except (ValueError, TypeError):
+            pass
     if start_date:
         try:
             query = query.filter(date_col >= date.fromisoformat(start_date))

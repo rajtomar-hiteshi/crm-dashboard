@@ -2,7 +2,7 @@ import logging
 from datetime import timedelta
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func, cast, Integer, extract
+from sqlalchemy import func
 
 from database import get_db
 from models import (
@@ -20,7 +20,7 @@ def _base_query(db, employee, start_date, end_date):
     base = db.query(TargetTracking, Person.short_name)\
         .join(Person, TargetTracking.person_id == Person.id)\
         .filter(TargetTracking.activity_date.isnot(None))
-    return apply_filters(base, Person.short_name, TargetTracking.activity_date, employee, start_date, end_date)
+    return apply_filters(base, TargetTracking.person_id, TargetTracking.activity_date, employee, start_date, end_date)
 
 
 def _daily(results, field):
@@ -105,6 +105,55 @@ def _summary(results, field, label):
     }
 
 
+def _detail_table_drilldown(db, model, date_col_attr, employee, start_date, end_date, person_map):
+    date_col = getattr(model, date_col_attr)
+    base = db.query(model, Person.short_name)\
+        .join(Person, model.person_id == Person.id)
+    base = apply_filters(base, model.person_id, date_col, employee, start_date, end_date)
+    records = base.all()
+    total = len(records)
+
+    by_emp = {}
+    monthly = {}
+    daily = {}
+    for r, name in records:
+        by_emp[name] = by_emp.get(name, 0) + 1
+        d = getattr(r, date_col_attr)
+        if d:
+            m = d.strftime("%Y-%m")
+            monthly[m] = monthly.get(m, 0) + 1
+            dk = d.isoformat()
+            daily[dk] = daily.get(dk, 0) + 1
+
+    total_val = total or 1
+    by_employee = [
+        {
+            "employee": name, "value": cnt,
+            "pct": round(cnt / total_val * 100, 1),
+            "active_days": 0, "avg_daily": 0,
+            "color": PERSON_COLORS.get(name, "#666"),
+        }
+        for name, cnt in sorted(by_emp.items(), key=lambda x: -x[1])
+    ]
+
+    peak_date = max(daily, key=daily.get) if daily else None
+    peak_val = daily[peak_date] if peak_date else 0
+
+    return {
+        "summary": {
+            "total": total,
+            "active_days": len(daily),
+            "avg_daily": round(total / max(len(daily), 1), 1),
+            "peak_day": {"date": peak_date, "value": peak_val},
+        },
+        "daily": [{"date": d, "value": v} for d, v in sorted(daily.items())],
+        "weekly": [],
+        "monthly": [{"month": m, "value": v} for m, v in sorted(monthly.items())],
+        "by_employee": by_employee,
+        "employee_daily": [],
+    }
+
+
 @router.get("/drilldown/{metric}")
 def get_drilldown(
     metric: str,
@@ -117,13 +166,23 @@ def get_drilldown(
         "connections": ("linkedin_connections", "LinkedIn Connections"),
         "followups": ("linkedin_follow_ups", "Follow-Ups"),
         "inmails": ("linkedin_inmails", "InMails Sent"),
-        "positive_responses": ("positive_responses", "Positive Responses"),
-        "leads": ("leads_generated", "Leads Generated"),
         "emails": ("emails", "Email Outreach"),
     }
 
+    person_map = {p.id: (p.short_name or p.full_name) for p in db.query(Person).all()}
+
     if metric == "response_rate":
-        return _drilldown_response_rate(db, employee, start_date, end_date)
+        return _drilldown_response_rate(db, employee, start_date, end_date, person_map)
+
+    if metric == "positive_responses":
+        dd = _detail_table_drilldown(db, PositiveResponse, "response_date", employee, start_date, end_date, person_map)
+        recent = _get_recent(db, metric, employee, start_date, end_date)
+        return {"metric": metric, "title": "Positive Responses", **dd, "recent": recent}
+
+    if metric == "leads":
+        dd = _detail_table_drilldown(db, LeadGenerated, "inquiry_date", employee, start_date, end_date, person_map)
+        recent = _get_recent(db, metric, employee, start_date, end_date)
+        return {"metric": metric, "title": "Leads Generated", **dd, "recent": recent}
 
     if metric not in METRIC_MAP:
         return {"error": f"Unknown metric: {metric}"}
@@ -155,41 +214,54 @@ def get_drilldown(
     }
 
 
-def _drilldown_response_rate(db, employee, start_date, end_date):
+def _drilldown_response_rate(db, employee, start_date, end_date, person_map):
     base = _base_query(db, employee, start_date, end_date)
     results = base.order_by(TargetTracking.activity_date).all()
 
-    monthly = {}
+    pr_q = db.query(PositiveResponse.person_id, PositiveResponse.response_date)
+    pr_q = apply_filters(pr_q, PositiveResponse.person_id, PositiveResponse.response_date, employee, start_date, end_date)
+    pr_records = pr_q.all()
+
+    pr_monthly = {}
+    pr_by_pid = {}
+    for pid, rdate in pr_records:
+        pr_by_pid[pid] = pr_by_pid.get(pid, 0) + 1
+        if rdate:
+            m = rdate.strftime("%Y-%m")
+            pr_monthly[m] = pr_monthly.get(m, 0) + 1
+
+    conn_monthly = {}
+    conn_by_name = {}
+    pid_to_name = {}
     for r, name in results:
         m = r.activity_date.strftime("%Y-%m")
-        if m not in monthly:
-            monthly[m] = {"month": m, "responses": 0, "connections": 0}
-        monthly[m]["responses"] += safe_int(r.positive_responses)
-        monthly[m]["connections"] += safe_int(r.linkedin_connections)
+        conn_monthly[m] = conn_monthly.get(m, 0) + safe_int(r.linkedin_connections)
+        if name not in conn_by_name:
+            conn_by_name[name] = {"connections": 0, "pid": r.person_id}
+        conn_by_name[name]["connections"] += safe_int(r.linkedin_connections)
+        pid_to_name[r.person_id] = name
+
     trend = []
-    for m, d in sorted(monthly.items()):
-        rate = round(d["responses"] / max(d["connections"], 1) * 100, 2)
-        trend.append({"month": m, "value": rate, "responses": d["responses"], "connections": d["connections"]})
+    for m in sorted(set(conn_monthly.keys()) | set(pr_monthly.keys())):
+        resp = pr_monthly.get(m, 0)
+        conn = conn_monthly.get(m, 0)
+        rate = round(resp / max(conn, 1) * 100, 2)
+        trend.append({"month": m, "value": rate, "responses": resp, "connections": conn})
 
-    emp = {}
-    for r, name in results:
-        if name not in emp:
-            emp[name] = {"responses": 0, "connections": 0}
-        emp[name]["responses"] += safe_int(r.positive_responses)
-        emp[name]["connections"] += safe_int(r.linkedin_connections)
-    by_emp = [
-        {
-            "employee": n,
-            "value": round(d["responses"] / max(d["connections"], 1) * 100, 2),
-            "responses": d["responses"],
-            "connections": d["connections"],
-            "color": PERSON_COLORS.get(n, "#666"),
-        }
-        for n, d in sorted(emp.items(), key=lambda x: -x[1]["responses"])
-    ]
+    by_emp = []
+    for name, d in sorted(conn_by_name.items(), key=lambda x: -pr_by_pid.get(x[1]["pid"], 0)):
+        resp = pr_by_pid.get(d["pid"], 0)
+        conn = d["connections"]
+        by_emp.append({
+            "employee": name,
+            "value": round(resp / max(conn, 1) * 100, 2),
+            "responses": resp,
+            "connections": conn,
+            "color": PERSON_COLORS.get(name, "#666"),
+        })
 
-    total_resp = sum(d["responses"] for d in emp.values())
-    total_conn = sum(d["connections"] for d in emp.values())
+    total_resp = len(pr_records)
+    total_conn = sum(d["connections"] for d in conn_by_name.values())
 
     return {
         "metric": "response_rate",
@@ -215,7 +287,7 @@ def _get_recent(db, metric, employee, start_date, end_date):
     if metric == "connections":
         base = db.query(LinkedinConnection, Person.short_name)\
             .join(Person, LinkedinConnection.person_id == Person.id)
-        base = apply_filters(base, Person.short_name, LinkedinConnection.activity_date, employee, start_date, end_date)
+        base = apply_filters(base, LinkedinConnection.person_id, LinkedinConnection.activity_date, employee, start_date, end_date)
         rows = base.order_by(LinkedinConnection.activity_date.desc()).limit(50).all()
         return [
             {
@@ -231,7 +303,7 @@ def _get_recent(db, metric, employee, start_date, end_date):
     if metric == "followups":
         base = db.query(LinkedinFollowup, Person.short_name)\
             .join(Person, LinkedinFollowup.person_id == Person.id)
-        base = apply_filters(base, Person.short_name, LinkedinFollowup.activity_date, employee, start_date, end_date)
+        base = apply_filters(base, LinkedinFollowup.person_id, LinkedinFollowup.activity_date, employee, start_date, end_date)
         rows = base.order_by(LinkedinFollowup.activity_date.desc()).limit(50).all()
         return [
             {
@@ -247,7 +319,7 @@ def _get_recent(db, metric, employee, start_date, end_date):
     if metric == "inmails":
         base = db.query(LinkedinInmail, Person.short_name)\
             .join(Person, LinkedinInmail.person_id == Person.id)
-        base = apply_filters(base, Person.short_name, LinkedinInmail.activity_date, employee, start_date, end_date)
+        base = apply_filters(base, LinkedinInmail.person_id, LinkedinInmail.activity_date, employee, start_date, end_date)
         rows = base.order_by(LinkedinInmail.activity_date.desc()).limit(50).all()
         return [
             {
@@ -263,7 +335,7 @@ def _get_recent(db, metric, employee, start_date, end_date):
     if metric == "positive_responses":
         base = db.query(PositiveResponse, Person.short_name)\
             .join(Person, PositiveResponse.person_id == Person.id)
-        base = apply_filters(base, Person.short_name, PositiveResponse.response_date, employee, start_date, end_date)
+        base = apply_filters(base, PositiveResponse.person_id, PositiveResponse.response_date, employee, start_date, end_date)
         rows = base.order_by(PositiveResponse.response_date.desc()).limit(50).all()
         return [
             {
@@ -279,7 +351,7 @@ def _get_recent(db, metric, employee, start_date, end_date):
     if metric == "leads":
         base = db.query(LeadGenerated, Person.short_name)\
             .join(Person, LeadGenerated.person_id == Person.id)
-        base = apply_filters(base, Person.short_name, LeadGenerated.inquiry_date, employee, start_date, end_date)
+        base = apply_filters(base, LeadGenerated.person_id, LeadGenerated.inquiry_date, employee, start_date, end_date)
         rows = base.order_by(LeadGenerated.inquiry_date.desc()).limit(50).all()
         return [
             {
@@ -295,7 +367,7 @@ def _get_recent(db, metric, employee, start_date, end_date):
     if metric == "emails":
         base = db.query(Email, Person.short_name)\
             .join(Person, Email.person_id == Person.id)
-        base = apply_filters(base, Person.short_name, Email.activity_date, employee, start_date, end_date)
+        base = apply_filters(base, Email.person_id, Email.activity_date, employee, start_date, end_date)
         rows = base.order_by(Email.activity_date.desc()).limit(50).all()
         return [
             {

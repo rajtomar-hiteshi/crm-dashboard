@@ -101,7 +101,7 @@ export default function Header({ title, subtitle, onSync, syncing }) {
             <select value={employee} onChange={(e) => setEmployee(e.target.value)} className={selectClass}>
               <option value="all" style={optionStyle}>All Employees</option>
               {employees.map(emp => (
-                <option key={emp.name} value={emp.name} style={optionStyle}>{emp.name}</option>
+                <option key={emp.id || emp.name} value={emp.id || emp.name} style={optionStyle}>{emp.full_name || emp.name}</option>
               ))}
             </select>
             <ChevronDown className={`absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none ${isDark ? 'text-[#94A3B8]' : 'text-[#64748B]'}`} />

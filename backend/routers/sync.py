@@ -41,7 +41,15 @@ def run_sync(db: Session = Depends(get_db)):
 
 @router.get("/employees")
 def get_employees(db: Session = Depends(get_db)):
-    persons = db.query(Person).order_by(Person.short_name).all()
+    persons = db.query(Person).order_by(Person.full_name).all()
     if not persons:
         return [{"name": e, "color": c} for e, c in PERSON_COLORS.items()]
-    return [{"name": p.short_name or p.full_name, "color": PERSON_COLORS.get(p.short_name, "#666")} for p in persons]
+    return [
+        {
+            "id": p.id,
+            "name": p.short_name or p.full_name,
+            "full_name": p.full_name,
+            "color": PERSON_COLORS.get(p.short_name, "#666"),
+        }
+        for p in persons
+    ]

@@ -21,7 +21,7 @@ def get_connections(
     base = db.query(TargetTracking, Person.short_name)\
         .join(Person, TargetTracking.person_id == Person.id)\
         .filter(TargetTracking.activity_date.isnot(None))
-    base = apply_filters(base, Person.short_name, TargetTracking.activity_date, employee, start_date, end_date)
+    base = apply_filters(base, TargetTracking.person_id, TargetTracking.activity_date, employee, start_date, end_date)
     results = base.all()
     logger.info(f"Connections: {len(results)} rows")
 

@@ -1,7 +1,9 @@
 import { useState, useCallback } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import Sidebar from './components/Sidebar'
 import Header from './components/Header'
+import SyncResultModal from './components/SyncResultModal'
 import MasterDashboard from './pages/MasterDashboard'
 import ActivityTracker from './pages/ActivityTracker'
 import LinkedInConnections from './pages/LinkedInConnections'
@@ -23,18 +25,31 @@ const PAGE_CONFIG = {
 
 export default function App() {
   const [syncing, setSyncing] = useState(false)
+  const [syncResult, setSyncResult] = useState(null)
   const [currentPath, setCurrentPath] = useState('/')
+  const queryClient = useQueryClient()
 
   const handleSync = useCallback(async () => {
     setSyncing(true)
     try {
-      await api.post('/api/sync')
+      const res = await api.post('/api/sync')
+      setSyncResult(res.data)
+      queryClient.invalidateQueries()
     } catch (e) {
       console.error('Sync failed:', e)
+      setSyncResult({
+        status: 'error',
+        synced_at: new Date().toISOString(),
+        files_synced: 0,
+        new_rows_added: 0,
+        rows_skipped_already_exist: 0,
+        error: e.response?.data?.detail || e.message || 'Sync failed',
+        details: [],
+      })
     } finally {
       setSyncing(false)
     }
-  }, [])
+  }, [queryClient])
 
   const pageConfig = PAGE_CONFIG[currentPath] || PAGE_CONFIG['/']
 
@@ -61,6 +76,10 @@ export default function App() {
           </Routes>
         </main>
       </div>
+
+      {syncResult && (
+        <SyncResultModal result={syncResult} onClose={() => setSyncResult(null)} />
+      )}
     </div>
   )
 }

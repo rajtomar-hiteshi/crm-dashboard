@@ -149,7 +149,7 @@ export default function Header({ title, subtitle, onSync, syncing }) {
             className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-full text-sm font-medium text-white transition-colors"
           >
             <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
-            {syncing ? 'Syncing...' : 'Refresh Data'}
+            {syncing ? 'Syncing...' : 'Sync Now'}
           </button>
         </div>
       </div>

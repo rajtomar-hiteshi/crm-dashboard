@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
@@ -22,6 +22,21 @@ def sync_status(db: Session = Depends(get_db)):
         "records_updated": last.rows_inserted or 0,
         "message": f"Last ingested: {last.worksheet_name}",
     }
+
+
+@router.post("/sync")
+def run_sync(db: Session = Depends(get_db)):
+    try:
+        from services.sync_service import run_incremental_sync
+        result = run_incremental_sync(db)
+        return result
+    except FileNotFoundError as e:
+        logger.error(f"Sync failed — missing file: {e}")
+        raise HTTPException(status_code=500, detail=f"Missing credentials or file: {e}")
+    except Exception as e:
+        logger.exception("Sync failed")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/employees")

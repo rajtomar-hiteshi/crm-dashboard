@@ -11,12 +11,19 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _quarter_key(year_month: str) -> str:
+    y, m = year_month.split("-")
+    q = (int(m) - 1) // 3 + 1
+    return f"Q{q} {y}"
+
+
 @router.get("/dashboard")
 def get_dashboard(
     employee: str = Query("all"),
     start_date: str = Query(None),
     end_date: str = Query(None),
     period: str = Query(None),
+    group_by: str = Query("month"),
     db: Session = Depends(get_db),
 ):
     fkw = dict(employee=employee, start_date=start_date, end_date=end_date, period=period)
@@ -87,6 +94,18 @@ def get_dashboard(
             monthly_data[m] = {"month": m, "connections": 0, "follow_ups": 0, "inmails": 0, "leads": 0}
         monthly_data[m]["leads"] = leads_monthly.get(m, 0)
     monthly_trend = sorted(monthly_data.values(), key=lambda x: x["month"])
+
+    if group_by == "quarter":
+        quarterly = {}
+        for entry in monthly_trend:
+            qk = _quarter_key(entry["month"])
+            if qk not in quarterly:
+                quarterly[qk] = {"period": qk, "connections": 0, "follow_ups": 0, "inmails": 0, "leads": 0}
+            quarterly[qk]["connections"] += entry["connections"]
+            quarterly[qk]["follow_ups"] += entry["follow_ups"]
+            quarterly[qk]["inmails"] += entry["inmails"]
+            quarterly[qk]["leads"] += entry["leads"]
+        monthly_trend = sorted(quarterly.values(), key=lambda x: x["period"])
 
     emp_conn = {}
     emp_comp = {}

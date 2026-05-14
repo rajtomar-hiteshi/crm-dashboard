@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from filters import resolve_period
 from models import (
-    Person, TargetTracking, LinkedinConnection, LinkedinFollowup,
+    Person, SourceFile, TargetTracking, LinkedinConnection, LinkedinFollowup,
     LinkedinInmail, Email, PositiveResponse, LeadGenerated,
     DataExtractionRecord, BiddetailTender, OtherWorksheetData,
 )
@@ -178,6 +178,44 @@ def _row_to_dict(row, cfg: dict) -> dict:
                 d[col_name] = val
     d["id"] = obj.id
     return d
+
+
+@router.get("/source-link")
+def get_source_link(
+    table: str = Query(...),
+    row_id: int = Query(...),
+    db: Session = Depends(get_db),
+):
+    cfg = TABLE_CONFIG.get(table)
+    if not cfg:
+        raise HTTPException(status_code=404, detail=f"Unknown table: {table}")
+
+    Model = cfg["model"]
+    row = db.query(Model).filter(Model.id == row_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Row {row_id} not found in {table}")
+
+    sf = db.query(SourceFile).filter(SourceFile.id == row.source_file_id).first()
+    if not sf or not sf.drive_file_id:
+        raise HTTPException(status_code=404, detail="Source file not found for this row")
+
+    person = db.query(Person).filter(Person.id == row.person_id).first()
+    person_name = person.full_name if person else "Unknown"
+
+    drive_id = sf.drive_file_id
+    file_name = sf.file_name or ""
+    if file_name.lower().endswith(".xlsx") or file_name.lower().endswith(".xls"):
+        sheet_url = f"https://drive.google.com/file/d/{drive_id}/view"
+    else:
+        sheet_url = f"https://docs.google.com/spreadsheets/d/{drive_id}/edit"
+
+    return {
+        "sheet_url": sheet_url,
+        "worksheet_name": row.original_worksheet,
+        "drive_file_id": drive_id,
+        "person_name": person_name,
+        "source_file_name": file_name,
+    }
 
 
 @router.get("/{table}")

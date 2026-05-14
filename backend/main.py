@@ -47,10 +47,10 @@ def seed_users():
     Base.metadata.create_all(bind=engine, tables=[User.__table__])
 
     seed_data = [
-        {"email": "manoj@hiteshi.com", "full_name": "Manoj"},
-        {"email": "ishaan@hiteshi.com", "full_name": "Ishaan"},
-        {"email": "rajeshwari.parmar@hiteshi.com", "full_name": "Rajeshwari Parmar"},
-        {"email": "raj.tomar@hiteshi.com", "full_name": "Raj Tomar"},
+        {"email": "manoj@hiteshi.com", "full_name": "Manoj", "password": "manoj@12345"},
+        {"email": "ishaan@hiteshi.com", "full_name": "Ishaan", "password": "ishaan@12345"},
+        {"email": "rajeshwari.parmar@hiteshi.com", "full_name": "Rajeshwari Parmar", "password": "rajeshwari@12345"},
+        {"email": "raj.tomar@hiteshi.com", "full_name": "Raj Tomar", "password": "raj@12345"},
     ]
 
     db = SessionLocal()
@@ -60,7 +60,7 @@ def seed_users():
             if not existing:
                 user = User(
                     email=u["email"],
-                    password_hash=hash_password("123456789"),
+                    password_hash=hash_password(u["password"]),
                     full_name=u["full_name"],
                     role="admin",
                     is_active=True,

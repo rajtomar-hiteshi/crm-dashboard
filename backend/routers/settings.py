@@ -1,3 +1,4 @@
+import io
 import logging
 import os
 import re
@@ -180,6 +181,80 @@ def search_drive(body: dict, db: Session = Depends(get_db)):
     return {"files": files, "search_name": name}
 
 
+def _scan_via_gspread(drive_file_id):
+    gc = _get_gspread_client()
+    spreadsheet = gc.open_by_key(drive_file_id)
+    worksheets = []
+    for ws in spreadsheet.worksheets():
+        try:
+            all_values = ws.get_all_values()
+            row_count = max(0, len(all_values) - 1)
+            headers = all_values[0] if all_values else []
+            non_empty_headers = [h for h in headers if str(h).strip()]
+            mapped_table = _auto_detect_worksheet(ws.title, headers)
+            worksheets.append({
+                "name": ws.title, "rows": row_count,
+                "columns": non_empty_headers,
+                "mapped_table": mapped_table or "UNKNOWN",
+                "is_empty": row_count == 0,
+            })
+        except Exception as e:
+            worksheets.append({
+                "name": ws.title, "rows": 0, "columns": [],
+                "mapped_table": "ERROR", "error": str(e), "is_empty": True,
+            })
+    return spreadsheet.title, worksheets
+
+
+def _scan_via_drive_download(drive_file_id):
+    from googleapiclient.http import MediaIoBaseDownload
+    import openpyxl
+
+    drive = _get_drive_service()
+    file_meta = drive.files().get(fileId=drive_file_id, fields="mimeType,name").execute()
+    mime_type = file_meta.get("mimeType", "")
+    file_name = file_meta.get("name", drive_file_id)
+
+    if mime_type == "application/vnd.google-apps.spreadsheet":
+        request = drive.files().export_media(
+            fileId=drive_file_id,
+            mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    else:
+        request = drive.files().get_media(fileId=drive_file_id)
+
+    buf = io.BytesIO()
+    downloader = MediaIoBaseDownload(buf, request)
+    done = False
+    while not done:
+        _, done = downloader.next_chunk()
+    buf.seek(0)
+
+    wb = openpyxl.load_workbook(buf, read_only=True, data_only=True)
+    worksheets = []
+    for ws_name in wb.sheetnames:
+        ws = wb[ws_name]
+        rows = list(ws.iter_rows(values_only=True))
+        if not rows:
+            worksheets.append({
+                "name": ws_name, "rows": 0, "columns": [],
+                "mapped_table": "UNKNOWN", "is_empty": True,
+            })
+            continue
+        headers = [str(c) if c else "" for c in rows[0]]
+        non_empty_headers = [h for h in headers if h.strip()]
+        row_count = max(0, len(rows) - 1)
+        mapped_table = _auto_detect_worksheet(ws_name, headers)
+        worksheets.append({
+            "name": ws_name, "rows": row_count,
+            "columns": non_empty_headers,
+            "mapped_table": mapped_table or "UNKNOWN",
+            "is_empty": row_count == 0,
+        })
+    wb.close()
+    return file_name, worksheets
+
+
 @router.post("/scan-file")
 def scan_file(body: dict, db: Session = Depends(get_db)):
     raw_id = body.get("drive_file_id", "").strip()
@@ -191,43 +266,27 @@ def scan_file(body: dict, db: Session = Depends(get_db)):
     drive_file_id = extract_file_id(raw_id)
 
     try:
-        gc = _get_gspread_client()
-        spreadsheet = gc.open_by_key(drive_file_id)
+        file_name, worksheets = _scan_via_gspread(drive_file_id)
     except Exception as e:
         err = str(e)
         if "404" in err or "not found" in err.lower():
             raise HTTPException(
                 status_code=404,
-                detail=f"File not found. Please share the Google Sheet with the service account email: {SERVICE_ACCOUNT_EMAIL}",
+                detail=f"File not found. Please share the Google Sheet with: {SERVICE_ACCOUNT_EMAIL}",
             )
-        raise HTTPException(status_code=400, detail=f"Could not open file: {err}")
-
-    worksheets = []
-    for ws in spreadsheet.worksheets():
-        try:
-            all_values = ws.get_all_values()
-            row_count = max(0, len(all_values) - 1)
-            headers = all_values[0] if all_values else []
-            non_empty_headers = [h for h in headers if str(h).strip()]
-
-            mapped_table = _auto_detect_worksheet(ws.title, headers)
-
-            worksheets.append({
-                "name": ws.title,
-                "rows": row_count,
-                "columns": non_empty_headers,
-                "mapped_table": mapped_table or "UNKNOWN",
-                "is_empty": row_count == 0,
-            })
-        except Exception as e:
-            worksheets.append({
-                "name": ws.title,
-                "rows": 0,
-                "columns": [],
-                "mapped_table": "ERROR",
-                "error": str(e),
-                "is_empty": True,
-            })
+        if "Office file" in err or "not supported" in err.lower():
+            try:
+                file_name, worksheets = _scan_via_drive_download(drive_file_id)
+            except Exception as e2:
+                err2 = str(e2)
+                if "404" in err2 or "not found" in err2.lower():
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"File not found. Please share the file with: {SERVICE_ACCOUNT_EMAIL}",
+                    )
+                raise HTTPException(status_code=400, detail=f"Could not read file: {err2}")
+        else:
+            raise HTTPException(status_code=400, detail=f"Could not open file: {err}")
 
     total_rows = sum(ws["rows"] for ws in worksheets)
 
@@ -354,13 +413,47 @@ def add_person(body: dict, db: Session = Depends(get_db)):
     }
 
 
+def _read_worksheet_values(drive_file_id, ws_name):
+    try:
+        gc = _get_gspread_client()
+        spreadsheet = gc.open_by_key(drive_file_id)
+        worksheet = spreadsheet.worksheet(ws_name)
+        return worksheet.get_all_values()
+    except Exception as e:
+        if "Office file" not in str(e) and "not supported" not in str(e).lower():
+            raise
+    from googleapiclient.http import MediaIoBaseDownload
+    import openpyxl
+
+    drive = _get_drive_service()
+    meta = drive.files().get(fileId=drive_file_id, fields="mimeType").execute()
+    mime = meta.get("mimeType", "")
+    if mime == "application/vnd.google-apps.spreadsheet":
+        req = drive.files().export_media(
+            fileId=drive_file_id,
+            mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    else:
+        req = drive.files().get_media(fileId=drive_file_id)
+    buf = io.BytesIO()
+    dl = MediaIoBaseDownload(buf, req)
+    done = False
+    while not done:
+        _, done = dl.next_chunk()
+    buf.seek(0)
+    wb = openpyxl.load_workbook(buf, read_only=True, data_only=True)
+    ws = wb[ws_name]
+    rows = []
+    for row in ws.iter_rows(values_only=True):
+        rows.append([str(c) if c is not None else "" for c in row])
+    wb.close()
+    return rows
+
+
 def _import_worksheet(db, person_id, source_file_id, drive_file_id, ws_name, mapped_table):
     from sync_sheets import parse_date, safe_str, extract_number
 
-    gc = _get_gspread_client()
-    spreadsheet = gc.open_by_key(drive_file_id)
-    worksheet = spreadsheet.worksheet(ws_name)
-    all_values = worksheet.get_all_values()
+    all_values = _read_worksheet_values(drive_file_id, ws_name)
 
     if len(all_values) <= 1:
         return 0
@@ -594,10 +687,7 @@ def _import_worksheet(db, person_id, source_file_id, drive_file_id, ws_name, map
 
 
 def _import_as_jsonb(db, person_id, source_file_id, drive_file_id, ws_name):
-    gc = _get_gspread_client()
-    spreadsheet = gc.open_by_key(drive_file_id)
-    worksheet = spreadsheet.worksheet(ws_name)
-    all_values = worksheet.get_all_values()
+    all_values = _read_worksheet_values(drive_file_id, ws_name)
 
     if len(all_values) <= 1:
         return 0
@@ -734,9 +824,17 @@ def add_file_to_person(person_id: int, body: dict, db: Session = Depends(get_db)
         if "404" in err or "not found" in err.lower():
             raise HTTPException(
                 status_code=404,
-                detail=f"File not found. Please share the Google Sheet with: {SERVICE_ACCOUNT_EMAIL}",
+                detail=f"File not found. Please share the file with: {SERVICE_ACCOUNT_EMAIL}",
             )
-        raise HTTPException(status_code=400, detail=f"Could not open file: {err}")
+        if "Office file" in err or "not supported" in err.lower():
+            try:
+                drive = _get_drive_service()
+                meta = drive.files().get(fileId=drive_file_id, fields="name").execute()
+                file_name = meta.get("name", drive_file_id)
+            except Exception as e2:
+                raise HTTPException(status_code=400, detail=f"Could not read file metadata: {str(e2)}")
+        else:
+            raise HTTPException(status_code=400, detail=f"Could not open file: {err}")
 
     sf = SourceFile(
         person_id=person_id, file_name=file_name,

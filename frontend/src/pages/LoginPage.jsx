@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Zap, Mail, Lock, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 
@@ -32,9 +32,7 @@ export default function LoginPage() {
     <div className={`min-h-screen flex items-center justify-center px-4 ${isDark ? 'bg-[#0F172A]' : 'bg-[#F1F5F9]'}`}>
       <div className="w-full max-w-md">
         <div className="flex items-center justify-center gap-3 mb-8">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center">
-            <Zap className="w-6 h-6 text-white" />
-          </div>
+          <img src="/logo.svg" alt="Hiteshi" className="w-12 h-12 rounded-xl" />
           <div>
             <h1 className={`text-2xl font-bold leading-tight ${isDark ? 'text-white' : 'text-[#0F172A]'}`}>Hiteshi CRM</h1>
             <p className={`text-sm ${isDark ? 'text-[#94A3B8]' : 'text-[#64748B]'}`}>Dashboard</p>

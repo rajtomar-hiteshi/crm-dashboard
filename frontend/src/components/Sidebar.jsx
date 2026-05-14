@@ -1,7 +1,7 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Activity, Users, MessageSquare,
-  Mail, TrendingUp, Target, ChevronRight, Zap, CalendarCheck, Settings,
+  Mail, TrendingUp, Target, ChevronRight, CalendarCheck, Settings,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -30,9 +30,7 @@ export default function Sidebar({ onNavigate, currentPath }) {
     <aside className="w-[280px] h-screen bg-surface border-r border-edge flex flex-col flex-shrink-0">
       <div className="p-6 border-b border-edge">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center">
-            <Zap className="w-5 h-5 text-white" />
-          </div>
+          <img src="/logo.svg" alt="Hiteshi" className="w-10 h-10 rounded-xl" />
           <div>
             <h1 className="text-lg font-bold text-content leading-tight">Hiteshi</h1>
             <p className="text-xs text-content-muted leading-tight">CRM Dashboard</p>

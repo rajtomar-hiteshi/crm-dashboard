@@ -192,13 +192,14 @@ const RECENT_COLUMNS = {
 
 export default function DrillDownDrawer({ isOpen, onClose, metric, title, color }) {
   const [tab, setTab] = useState('overview')
+  const [dateFilter, setDateFilter] = useState(null)
   const drawerRef = useRef(null)
   const { data, isLoading } = useDrilldown(isOpen ? metric : null)
   const { employee, setEmployee } = useFilters()
   const { isDark } = useTheme()
 
   useEffect(() => {
-    if (isOpen) setTab('data')
+    if (isOpen) { setTab('data'); setDateFilter(null) }
   }, [isOpen, metric])
 
   useEffect(() => {
@@ -321,8 +322,12 @@ export default function DrillDownDrawer({ isOpen, onClose, metric, title, color 
                 </thead>
                 <tbody>
                   {data.daily.map(row => (
-                    <tr key={row.date} className="border-b border-edge/30 hover:bg-surface-hover">
-                      <td className="py-2 px-3 text-content-muted">{fmtDate(row.date)}</td>
+                    <tr
+                      key={row.date}
+                      className="border-b border-edge/30 hover:bg-surface-hover cursor-pointer transition-colors"
+                      onClick={() => { setDateFilter({ from: row.date, to: row.date, label: fmtDate(row.date) }); setTab('data') }}
+                    >
+                      <td className="py-2 px-3 text-blue-400 hover:text-blue-300">{fmtDate(row.date)}</td>
                       <td className="py-2 px-3 text-right text-content font-medium">{fmtNum(row.value)}</td>
                     </tr>
                   ))}
@@ -367,9 +372,17 @@ export default function DrillDownDrawer({ isOpen, onClose, metric, title, color 
               </tr>
             </thead>
             <tbody>
-              {data.monthly.map(row => (
-                <tr key={row.month} className="border-b border-edge/30 hover:bg-surface-hover">
-                  <td className="py-2 px-3 text-content">{fmtMonth(row.month)}</td>
+              {data.monthly.map(row => {
+                const monthStart = row.month + '-01'
+                const d = new Date(monthStart)
+                const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10)
+                return (
+                <tr
+                  key={row.month}
+                  className="border-b border-edge/30 hover:bg-surface-hover cursor-pointer transition-colors"
+                  onClick={() => { setDateFilter({ from: monthStart, to: monthEnd, label: fmtMonth(row.month) }); setTab('data') }}
+                >
+                  <td className="py-2 px-3 text-blue-400 hover:text-blue-300">{fmtMonth(row.month)}</td>
                   <td className="py-2 px-3 text-right text-content font-semibold">
                     {metric === 'response_rate' ? fmtPct(row.value) : fmtNum(row.value)}
                   </td>
@@ -380,7 +393,7 @@ export default function DrillDownDrawer({ isOpen, onClose, metric, title, color 
                     </>
                   )}
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
         </div>
@@ -502,12 +515,28 @@ export default function DrillDownDrawer({ isOpen, onClose, metric, title, color 
     const cfg = METRIC_TABLE_CONFIG[metric]
     if (!cfg) return <p className="text-content-muted text-sm text-center py-10">No data table available for this metric</p>
     return (
-      <DataTable
-        endpoint={cfg.endpoint}
-        title={cfg.title}
-        defaultSort={cfg.defaultSort}
-        columns={cfg.columns}
-      />
+      <div className="space-y-3">
+        {dateFilter && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-blue-500/10 border border-blue-500/20 rounded-xl text-sm">
+            <Calendar className="w-4 h-4 text-blue-400" />
+            <span className="text-blue-400">Filtered to: {dateFilter.label}</span>
+            <button
+              onClick={() => setDateFilter(null)}
+              className="ml-auto p-0.5 hover:bg-blue-500/20 rounded-md transition-colors"
+            >
+              <X className="w-3.5 h-3.5 text-blue-400" />
+            </button>
+          </div>
+        )}
+        <DataTable
+          endpoint={cfg.endpoint}
+          title={cfg.title}
+          defaultSort={cfg.defaultSort}
+          columns={cfg.columns}
+          dateFrom={dateFilter?.from}
+          dateTo={dateFilter?.to}
+        />
+      </div>
     )
   }
 

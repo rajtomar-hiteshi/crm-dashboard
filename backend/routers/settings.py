@@ -13,7 +13,7 @@ from models import (
     Person, SourceFile, TargetTracking, DailyTarget,
     LinkedinConnection, LinkedinFollowup, LinkedinInmail,
     Email, DataExtractionRecord, PositiveResponse, LeadGenerated,
-    OtherWorksheetData, IngestionLog,
+    OtherWorksheetData, IngestionLog, WorksheetMapping,
 )
 from helpers import PERSON_COLORS, safe_int
 
@@ -117,6 +117,34 @@ def _get_drive_service():
     return build("drive", "v3", credentials=creds)
 
 
+def _get_sheets_service():
+    from google.oauth2.service_account import Credentials
+    from googleapiclient.discovery import build
+
+    scopes = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
+    creds_path = os.path.join(os.path.dirname(__file__), "..", "..", "credentials.json")
+    if not os.path.exists(creds_path):
+        creds_path = os.path.join(os.path.dirname(__file__), "..", "credentials.json")
+
+    creds = Credentials.from_service_account_file(creds_path, scopes=scopes)
+    return build("sheets", "v4", credentials=creds)
+
+
+def _fetch_worksheet_gids(drive_file_id):
+    try:
+        sheets_svc = _get_sheets_service()
+        resp = sheets_svc.spreadsheets().get(
+            spreadsheetId=drive_file_id, fields="sheets.properties"
+        ).execute()
+        return {
+            s["properties"]["title"]: str(s["properties"]["sheetId"])
+            for s in resp.get("sheets", [])
+        }
+    except Exception as e:
+        logger.warning(f"Could not fetch GIDs for {drive_file_id}: {e}")
+        return {}
+
+
 def _auto_detect_worksheet(name, headers):
     name_lower = name.lower().strip()
     for ws_type, config in KNOWN_WORKSHEET_PATTERNS.items():
@@ -184,6 +212,7 @@ def search_drive(body: dict, db: Session = Depends(get_db)):
 def _scan_via_gspread(drive_file_id):
     gc = _get_gspread_client()
     spreadsheet = gc.open_by_key(drive_file_id)
+    gid_map = _fetch_worksheet_gids(drive_file_id)
     worksheets = []
     for ws in spreadsheet.worksheets():
         try:
@@ -197,11 +226,13 @@ def _scan_via_gspread(drive_file_id):
                 "columns": non_empty_headers,
                 "mapped_table": mapped_table or "UNKNOWN",
                 "is_empty": row_count == 0,
+                "gid": gid_map.get(ws.title),
             })
         except Exception as e:
             worksheets.append({
                 "name": ws.title, "rows": 0, "columns": [],
                 "mapped_table": "ERROR", "error": str(e), "is_empty": True,
+                "gid": gid_map.get(ws.title),
             })
     return spreadsheet.title, worksheets
 
@@ -215,7 +246,9 @@ def _scan_via_drive_download(drive_file_id):
     mime_type = file_meta.get("mimeType", "")
     file_name = file_meta.get("name", drive_file_id)
 
+    gid_map = {}
     if mime_type == "application/vnd.google-apps.spreadsheet":
+        gid_map = _fetch_worksheet_gids(drive_file_id)
         request = drive.files().export_media(
             fileId=drive_file_id,
             mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -239,6 +272,7 @@ def _scan_via_drive_download(drive_file_id):
             worksheets.append({
                 "name": ws_name, "rows": 0, "columns": [],
                 "mapped_table": "UNKNOWN", "is_empty": True,
+                "gid": gid_map.get(ws_name),
             })
             continue
         headers = [str(c) if c else "" for c in rows[0]]
@@ -250,6 +284,7 @@ def _scan_via_drive_download(drive_file_id):
             "columns": non_empty_headers,
             "mapped_table": mapped_table or "UNKNOWN",
             "is_empty": row_count == 0,
+            "gid": gid_map.get(ws_name),
         })
     wb.close()
     return file_name, worksheets
@@ -392,6 +427,17 @@ def add_person(body: dict, db: Session = Depends(get_db)):
                     columns_in_sheet=0, columns_mapped=0,
                     status="error", error_message=str(e)[:500],
                     ingested_at=datetime.now(),
+                ))
+
+        for ws_info in approved_worksheets:
+            gid = ws_info.get("gid")
+            target = ws_info.get("mapped_table", "UNKNOWN")
+            if gid and target not in ("SKIP", "ERROR"):
+                db.add(WorksheetMapping(
+                    source_file_id=sf.id,
+                    worksheet_name=ws_info.get("name", ""),
+                    worksheet_gid=str(gid),
+                    target_table=target,
                 ))
 
         import_results.append(file_result)
@@ -871,6 +917,17 @@ def add_file_to_person(person_id: int, body: dict, db: Session = Depends(get_db)
         except Exception as e:
             results.append({"name": ws_name, "table": mapped_table, "rows": 0, "status": "error", "error": str(e)})
 
+    for ws_info in worksheets_approved:
+        gid = ws_info.get("gid")
+        target = ws_info.get("mapped_table", "UNKNOWN")
+        if gid and target not in ("SKIP", "ERROR"):
+            db.add(WorksheetMapping(
+                source_file_id=sf.id,
+                worksheet_name=ws_info.get("name", ""),
+                worksheet_gid=str(gid),
+                target_table=target,
+            ))
+
     db.commit()
     return {"status": "ok", "file_name": file_name, "total_imported": total_imported, "worksheets": results}
 
@@ -886,6 +943,9 @@ def delete_person(person_id: int, db: Session = Depends(get_db)):
             db.query(model).filter(model.person_id == person_id).delete()
 
     db.query(IngestionLog).filter(IngestionLog.person_id == person_id).delete()
+    sf_ids = [sf.id for sf in db.query(SourceFile.id).filter(SourceFile.person_id == person_id).all()]
+    if sf_ids:
+        db.query(WorksheetMapping).filter(WorksheetMapping.source_file_id.in_(sf_ids)).delete(synchronize_session=False)
     db.query(SourceFile).filter(SourceFile.person_id == person_id).delete()
     db.query(Person).filter(Person.id == person_id).delete()
     db.commit()

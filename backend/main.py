@@ -39,18 +39,17 @@ app.include_router(auth_router.router, prefix="/api")
 @app.on_event("startup")
 def seed_users():
     from database import Base, engine, SessionLocal
-    from models import User
+    from models import User, WorksheetMapping
     from auth import hash_password
     from datetime import datetime
 
-    # Create users table if it doesn't exist
-    Base.metadata.create_all(bind=engine, tables=[User.__table__])
+    Base.metadata.create_all(bind=engine, tables=[User.__table__, WorksheetMapping.__table__])
 
     seed_data = [
-        {"email": "manoj@hiteshi.com", "full_name": "Manoj", "password": "manoj@12345"},
-        {"email": "ishaan@hiteshi.com", "full_name": "Ishaan", "password": "ishaan@12345"},
-        {"email": "rajeshwari.parmar@hiteshi.com", "full_name": "Rajeshwari Parmar", "password": "rajeshwari@12345"},
-        {"email": "raj.tomar@hiteshi.com", "full_name": "Raj Tomar", "password": "raj@12345"},
+        {"email": "manoj@hiteshi.com", "full_name": "Manoj", "password": "ManoJ@CRM2026#"},
+        {"email": "ishaan@hiteshi.com", "full_name": "Ishaan", "password": "Ishaan@CRM2026!"},
+        {"email": "rajeshwari.parmar@hiteshi.com", "full_name": "Rajeshwari Parmar", "password": "Rajeshwar1@CRM2026%"},
+        {"email": "raj.tomar@hiteshi.com", "full_name": "Raj Tomar", "password": "Raj@CRM2026$"},
     ]
 
     db = SessionLocal()

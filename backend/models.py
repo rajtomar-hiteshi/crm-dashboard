@@ -302,6 +302,15 @@ class IngestionLog(Base):
     ingested_at = Column(DateTime)
 
 
+class WorksheetMapping(Base):
+    __tablename__ = "worksheet_mapping"
+    id = Column(Integer, primary_key=True)
+    source_file_id = Column(Integer, ForeignKey("source_files.id"))
+    worksheet_name = Column(Text, nullable=False)
+    worksheet_gid = Column(Text)
+    target_table = Column(Text, nullable=False)
+
+
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True)

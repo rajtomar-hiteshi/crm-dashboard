@@ -8,16 +8,16 @@ import io
 import logging
 from datetime import date
 
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query, HTTPException, Request
 from fastapi.responses import StreamingResponse
-from sqlalchemy import desc as sa_desc, asc as sa_asc, or_, cast, Text as SAText, func
+from sqlalchemy import desc as sa_desc, asc as sa_asc, or_, cast, Text as SAText, func, extract
 from sqlalchemy.orm import Session
 
 from database import get_db
 from filters import resolve_period
 from models import (
-    Person, SourceFile, TargetTracking, LinkedinConnection, LinkedinFollowup,
-    LinkedinInmail, Email, PositiveResponse, LeadGenerated,
+    Person, SourceFile, WorksheetMapping, TargetTracking, LinkedinConnection,
+    LinkedinFollowup, LinkedinInmail, Email, PositiveResponse, LeadGenerated,
     DataExtractionRecord, BiddetailTender, OtherWorksheetData,
 )
 
@@ -34,6 +34,7 @@ TABLE_CONFIG = {
             "linkedin_inmails", "emails", "data_extraction", "cold_calling",
             "follow_up_calls", "positive_responses", "leads_generated", "calls", "comments",
         ],
+        "filters": [],
     },
     "linkedin-connections": {
         "model": LinkedinConnection,
@@ -43,6 +44,7 @@ TABLE_CONFIG = {
             "connection_message", "geography", "company_size", "industry",
             "cadence_sequence", "accepted", "filter_link", "response_received", "comments",
         ],
+        "filters": ["geography", "company_size", "industry", "linkedin_account_used"],
     },
     "linkedin-followups": {
         "model": LinkedinFollowup,
@@ -51,6 +53,7 @@ TABLE_CONFIG = {
             "activity_date", "short_name", "client_linkedin_url", "linkedin_account_used",
             "follow_up_type", "message_sent", "filter_value", "cadence", "response_received",
         ],
+        "filters": ["follow_up_type", "linkedin_account_used", "cadence"],
     },
     "linkedin-inmails": {
         "model": LinkedinInmail,
@@ -59,6 +62,7 @@ TABLE_CONFIG = {
             "activity_date", "short_name", "client_linkedin_url", "linkedin_account_used",
             "inmail_message_sent", "geography", "company_size", "industry", "filter_value", "cadence",
         ],
+        "filters": ["geography", "company_size", "industry", "linkedin_account_used"],
     },
     "emails": {
         "model": Email,
@@ -68,6 +72,7 @@ TABLE_CONFIG = {
             "client_linkedin_url", "company_name", "email_content_sent",
             "opportunity_url", "contact_number", "reason", "next_step", "cadence",
         ],
+        "filters": ["cadence", "reason"],
     },
     "positive-responses": {
         "model": PositiveResponse,
@@ -79,6 +84,7 @@ TABLE_CONFIG = {
             "response_quality", "client_first_revert", "chat_summary", "source",
             "original_worksheet",
         ],
+        "filters": ["client_type", "response_quality", "source"],
     },
     "leads-generated": {
         "model": LeadGenerated,
@@ -91,6 +97,7 @@ TABLE_CONFIG = {
             "summary", "next_step", "lead_source", "account",
             "assigned_consultant", "current_status", "status",
         ],
+        "filters": ["lead_source", "status", "current_status", "account", "assigned_consultant"],
     },
     "data-extraction": {
         "model": DataExtractionRecord,
@@ -100,6 +107,7 @@ TABLE_CONFIG = {
             "client_email", "client_linkedin_url", "source_of_data",
             "region", "designation", "industry", "contact_number",
         ],
+        "filters": ["source_of_data", "region", "industry", "designation"],
     },
     "biddetail-tenders": {
         "model": BiddetailTender,
@@ -109,12 +117,14 @@ TABLE_CONFIG = {
             "amount", "company", "contact_person_name", "contact_details",
             "link_of_tender", "data_fetch_date", "contract_date",
         ],
+        "filters": ["company"],
     },
 }
 
 
-def _build_query(db: Session, cfg: dict, person: str, date_from: str, date_to: str, search: str, period: str = None):
-    """Build a filtered query with Person join."""
+def _build_query(db: Session, cfg: dict, person: str, date_from: str, date_to: str,
+                  search: str, period: str = None, month: str = None,
+                  column_filters: dict = None):
     Model = cfg["model"]
     q = db.query(Model, Person.short_name).outerjoin(Person, Model.person_id == Person.id)
 
@@ -144,6 +154,14 @@ def _build_query(db: Session, cfg: dict, person: str, date_from: str, date_to: s
             except ValueError:
                 pass
 
+        if month:
+            try:
+                parts = month.split("-")
+                y, m = int(parts[0]), int(parts[1])
+                q = q.filter(extract("year", date_col) == y, extract("month", date_col) == m)
+            except (ValueError, IndexError):
+                pass
+
     if search:
         search_cols = []
         for col_name in cfg["columns"]:
@@ -154,6 +172,11 @@ def _build_query(db: Session, cfg: dict, person: str, date_from: str, date_to: s
         if search_cols:
             q = q.filter(or_(*search_cols))
 
+    if column_filters:
+        for col_name, val in column_filters.items():
+            if val and hasattr(Model, col_name):
+                q = q.filter(getattr(Model, col_name) == val)
+
     dedup_cols = cfg.get("dedup_cols")
     if dedup_cols:
         dedup_exprs = [getattr(Model, c) for c in dedup_cols]
@@ -161,6 +184,26 @@ def _build_query(db: Session, cfg: dict, person: str, date_from: str, date_to: s
         q = q.filter(Model.id.in_(subq))
 
     return q
+
+
+def _get_filter_options(db: Session, cfg: dict):
+    Model = cfg["model"]
+    filter_cols = cfg.get("filters", [])
+    options = {}
+    for col_name in filter_cols:
+        if hasattr(Model, col_name):
+            col = getattr(Model, col_name)
+            vals = db.query(col).filter(col.isnot(None), col != "").distinct().order_by(col).all()
+            options[col_name] = [v[0] for v in vals]
+    if cfg["date_col"]:
+        date_col = getattr(Model, cfg["date_col"])
+        months = db.query(
+            func.to_char(date_col, 'YYYY-MM')
+        ).filter(date_col.isnot(None)).distinct().order_by(
+            func.to_char(date_col, 'YYYY-MM').desc()
+        ).all()
+        options["month"] = [m[0] for m in months]
+    return options
 
 
 def _row_to_dict(row, cfg: dict) -> dict:
@@ -204,22 +247,38 @@ def get_source_link(
 
     drive_id = sf.drive_file_id
     file_name = sf.file_name or ""
+    ws_name = getattr(row, "original_worksheet", None)
+
+    wm = None
+    if ws_name:
+        wm = db.query(WorksheetMapping).filter(
+            WorksheetMapping.source_file_id == sf.id,
+            WorksheetMapping.worksheet_name == ws_name,
+        ).first()
+
     if file_name.lower().endswith(".xlsx") or file_name.lower().endswith(".xls"):
         sheet_url = f"https://drive.google.com/file/d/{drive_id}/view"
     else:
         sheet_url = f"https://docs.google.com/spreadsheets/d/{drive_id}/edit"
+        if wm and wm.worksheet_gid:
+            sheet_url += f"#gid={wm.worksheet_gid}"
 
     return {
         "sheet_url": sheet_url,
-        "worksheet_name": row.original_worksheet,
+        "worksheet_name": ws_name,
         "drive_file_id": drive_id,
         "person_name": person_name,
         "source_file_name": file_name,
+        "worksheet_gid": wm.worksheet_gid if wm else None,
     }
+
+
+KNOWN_PARAMS = {"table", "page", "limit", "sort", "order", "person", "date_from", "date_to", "period", "search", "month"}
 
 
 @router.get("/{table}")
 def get_table_data(
+    request: Request,
     table: str,
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
@@ -230,13 +289,20 @@ def get_table_data(
     date_to: str = Query(None),
     period: str = Query(None),
     search: str = Query(None),
+    month: str = Query(None),
     db: Session = Depends(get_db),
 ):
     cfg = TABLE_CONFIG.get(table)
     if not cfg:
         raise HTTPException(status_code=404, detail=f"Unknown table: {table}")
 
-    q = _build_query(db, cfg, person, date_from, date_to, search, period)
+    filter_cols = cfg.get("filters", [])
+    column_filters = {}
+    for key, val in request.query_params.items():
+        if key in filter_cols and val:
+            column_filters[key] = val
+
+    q = _build_query(db, cfg, person, date_from, date_to, search, period, month, column_filters)
     total = q.count()
 
     sort_col = None
@@ -255,17 +321,21 @@ def get_table_data(
     q = q.offset((page - 1) * limit).limit(limit)
     rows = q.all()
 
+    filter_options = _get_filter_options(db, cfg)
+
     return {
         "data": [_row_to_dict(r, cfg) for r in rows],
         "total": total,
         "page": page,
         "limit": limit,
         "total_pages": max(1, (total + limit - 1) // limit),
+        "filter_options": filter_options,
     }
 
 
 @router.get("/export/{table}")
 def export_table(
+    request: Request,
     table: str,
     format: str = Query("csv"),
     person: str = Query("all"),
@@ -273,13 +343,20 @@ def export_table(
     date_to: str = Query(None),
     period: str = Query(None),
     search: str = Query(None),
+    month: str = Query(None),
     db: Session = Depends(get_db),
 ):
     cfg = TABLE_CONFIG.get(table)
     if not cfg:
         raise HTTPException(status_code=404, detail=f"Unknown table: {table}")
 
-    q = _build_query(db, cfg, person, date_from, date_to, search, period)
+    filter_cols = cfg.get("filters", [])
+    column_filters = {}
+    for key, val in request.query_params.items():
+        if key in filter_cols and val:
+            column_filters[key] = val
+
+    q = _build_query(db, cfg, person, date_from, date_to, search, period, month, column_filters)
 
     if cfg["date_col"]:
         sort_col = getattr(cfg["model"], cfg["date_col"])

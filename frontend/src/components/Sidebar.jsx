@@ -1,17 +1,19 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Activity, Users, MessageSquare,
-  Mail, TrendingUp, Target, ChevronRight, Zap,
+  Mail, TrendingUp, Target, ChevronRight, Zap, CalendarCheck, Settings,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
   { path: '/', label: 'Master Dashboard', icon: LayoutDashboard },
+  { path: '/daily-activity', label: 'Daily Activity', icon: CalendarCheck },
   { path: '/activity', label: 'Activity Tracker', icon: Activity },
   { path: '/connections', label: 'LinkedIn Connections', icon: Users },
   { path: '/followups', label: 'Follow-Ups', icon: MessageSquare },
   { path: '/inmails', label: 'InMail Analytics', icon: Mail },
   { path: '/positive-responses', label: 'Positive Responses', icon: TrendingUp },
   { path: '/leads', label: 'Lead Pipeline', icon: Target },
+  { path: '/settings', label: 'Settings', icon: Settings },
 ]
 
 export default function Sidebar({ onNavigate, currentPath }) {

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { RefreshCw, RotateCcw, ChevronDown, Sun, Moon, Monitor, Filter } from 'lucide-react'
+import { RefreshCw, RotateCcw, ChevronDown, Sun, Moon, Monitor, Filter, Shield, User } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
 import { useFilters } from '../context/FilterContext'
 import { useEmployees } from '../hooks/useApi'
@@ -40,6 +40,7 @@ export default function Header({ title, subtitle, onSync, syncing }) {
   const [customStart, setCustomStart] = useState('')
   const [customEnd, setCustomEnd] = useState('')
   const [showFilters, setShowFilters] = useState(false)
+  const [viewRole, setViewRole] = useState('admin')
 
   const handlePresetChange = (value) => {
     setDatePreset(value)
@@ -138,6 +139,15 @@ export default function Header({ title, subtitle, onSync, syncing }) {
 
           <button onClick={cycleTheme} className={iconBtnClass} title={`Theme: ${mode}`}>
             {(() => { const Icon = themeIcon; return <Icon className="w-4 h-4" /> })()}
+          </button>
+
+          <button
+            onClick={() => setViewRole(viewRole === 'admin' ? 'team' : 'admin')}
+            className={`${iconBtnClass} flex items-center gap-1.5`}
+            title={`View: ${viewRole === 'admin' ? 'Admin' : 'Team Member'}`}
+          >
+            {viewRole === 'admin' ? <Shield className="w-4 h-4 text-blue-400" /> : <User className="w-4 h-4" />}
+            <span className="text-xs font-medium hidden xl:inline">{viewRole === 'admin' ? 'Admin' : 'Team'}</span>
           </button>
 
           <button onClick={resetFilters} className={iconBtnClass} title="Reset filters">

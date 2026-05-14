@@ -9,7 +9,21 @@ class Person(Base):
     full_name = Column(Text, nullable=False)
     short_name = Column(Text)
     email = Column(Text)
+    role = Column(Text, default="Lead Gen Executive")
     created_at = Column(DateTime)
+
+
+class DailyTarget(Base):
+    __tablename__ = "daily_targets"
+    id = Column(Integer, primary_key=True)
+    target_connections = Column(Integer, default=100)
+    target_followups = Column(Integer, default=100)
+    target_inmails = Column(Integer, default=30)
+    target_emails = Column(Integer, default=10)
+    target_data_extraction = Column(Integer, default=0)
+    target_positive_responses = Column(Integer, default=2)
+    target_leads = Column(Integer, default=1)
+    updated_at = Column(DateTime)
 
 
 class SourceFile(Base):

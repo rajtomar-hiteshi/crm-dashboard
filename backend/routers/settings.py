@@ -4,6 +4,7 @@ import os
 import re
 from datetime import datetime
 
+from dateutil import parser as date_parser
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -37,6 +38,49 @@ def extract_file_id(url_or_id: str) -> str:
     if m:
         return m.group(1)
     return url_or_id
+
+
+def parse_date(value, fmt="standard"):
+    if value is None or str(value).strip() == "":
+        return None
+    s = str(value).strip()
+    if not s:
+        return None
+    try:
+        if fmt == "yashika_2025":
+            return date_parser.parse(s).date()
+        parts = s.replace("/", "-").split("-")
+        if len(parts) == 3:
+            if len(parts[2]) == 4:
+                return datetime.strptime("-".join(parts), "%d-%m-%Y").date()
+            elif len(parts[0]) == 4:
+                return datetime.strptime("-".join(parts), "%Y-%m-%d").date()
+            else:
+                return datetime.strptime("-".join(parts), "%d-%m-%Y").date()
+        return date_parser.parse(s).date()
+    except (ValueError, TypeError):
+        return None
+
+
+def safe_str(row, idx, max_len=5000):
+    if idx is None or idx >= len(row):
+        return None
+    val = str(row[idx]).strip()
+    if not val:
+        return None
+    return val[:max_len]
+
+
+def extract_number(value):
+    if value is None or str(value).strip() == "":
+        return 0
+    s = str(value).strip().lower()
+    if s in ("leave", "absent", "holiday", "off", "-", "n/a"):
+        return 0
+    match = re.match(r"(\d+)", s)
+    if match:
+        return int(match.group(1))
+    return 0
 
 
 KNOWN_WORKSHEET_PATTERNS = {
@@ -507,8 +551,6 @@ def _read_worksheet_values(drive_file_id, ws_name):
 
 
 def _import_worksheet(db, person_id, source_file_id, drive_file_id, ws_name, mapped_table):
-    from sync_sheets import parse_date, safe_str, extract_number
-
     all_values = _read_worksheet_values(drive_file_id, ws_name)
 
     if len(all_values) <= 1:

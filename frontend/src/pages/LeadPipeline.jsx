@@ -5,7 +5,7 @@ import { useFilters } from '../context/FilterContext'
 import KPICard from '../components/KPICard'
 import DrillDownDrawer from '../components/DrillDownDrawer'
 import VerticalBarChart from '../components/charts/VerticalBarChart'
-import HorizontalBarChart from '../components/charts/HorizontalBarChart'
+import DonutChart from '../components/charts/DonutChart'
 import MultiLineChart from '../components/charts/MultiLineChart'
 import { fmtNum, fmtPct, fmtDate } from '../utils/formatters'
 import DataTable from '../components/DataTable'
@@ -75,7 +75,19 @@ export default function LeadPipeline() {
             <div className="bg-surface-card border border-edge rounded-xl p-5">
               <h3 className="text-base font-semibold text-content mb-4">Lead Geography</h3>
               {has_pipeline_data && geography.length > 0 ? (
-                <HorizontalBarChart data={geography.map(g => ({ ...g, employee: g.location }))} dataKey="count" />
+                <DonutChart
+                  data={(() => {
+                    const sorted = [...geography].sort((a, b) => b.count - a.count)
+                    const top8 = sorted.slice(0, 8).map(g => ({ name: `${g.location} (${g.count})`, value: g.count, color: g.color }))
+                    const rest = sorted.slice(8)
+                    if (rest.length > 0) {
+                      top8.push({ name: `Others (${rest.reduce((s, g) => s + g.count, 0)})`, value: rest.reduce((s, g) => s + g.count, 0), color: '#6B7280' })
+                    }
+                    return top8
+                  })()}
+                  nameKey="name"
+                  dataKey="value"
+                />
               ) : (
                 <div className="flex flex-col items-center justify-center py-10 text-content-muted text-sm">
                   <AlertCircle className="w-6 h-6 mb-2 opacity-50" />

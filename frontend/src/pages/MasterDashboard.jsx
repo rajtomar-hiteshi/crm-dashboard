@@ -10,6 +10,21 @@ import VerticalBarChart from '../components/charts/VerticalBarChart'
 import MonthDetailModal from '../components/MonthDetailModal'
 import { fmtNum, fmtPct } from '../utils/formatters'
 
+function groupByQuarter(monthlyData) {
+  const quarters = {}
+  for (const row of monthlyData) {
+    const [year, month] = row.month.split('-')
+    const q = Math.ceil(parseInt(month) / 3)
+    const key = `Q${q} ${year.slice(2)}`
+    if (!quarters[key]) quarters[key] = { month: key, connections: 0, follow_ups: 0, inmails: 0, leads: 0 }
+    quarters[key].connections += row.connections || 0
+    quarters[key].follow_ups += row.follow_ups || 0
+    quarters[key].inmails += row.inmails || 0
+    quarters[key].leads += row.leads || 0
+  }
+  return Object.values(quarters)
+}
+
 export default function MasterDashboard() {
   const { employee, setEmployee } = useFilters()
   const { data, isLoading } = useDashboard()
@@ -68,10 +83,10 @@ export default function MasterDashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-surface-card border border-edge rounded-xl p-5">
-          <h3 className="text-base font-semibold text-content mb-4">Monthly Activity Trend</h3>
+          <h3 className="text-base font-semibold text-content mb-4">Quarterly Activity Trend</h3>
           {monthly_trend.length > 0 ? (
             <MultiLineChart
-              data={monthly_trend}
+              data={groupByQuarter(monthly_trend)}
               lines={[
                 { key: 'connections', name: 'Connections', color: '#3B82F6' },
                 { key: 'follow_ups', name: 'Follow-Ups', color: '#06B6D4' },

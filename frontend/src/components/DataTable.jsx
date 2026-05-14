@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Search, Download, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
-  ArrowUpDown, ArrowUp, ArrowDown, Loader2, ExternalLink, X,
+  ArrowUpDown, ArrowUp, ArrowDown, Loader2, ExternalLink, X, FileSpreadsheet,
 } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
 import { useFilters } from '../context/FilterContext'
@@ -69,6 +69,15 @@ export default function DataTable({ endpoint, columns, defaultSort, defaultSortD
     a.click()
     window.URL.revokeObjectURL(url)
   }, [endpoint, employee, startDate, endDate, debouncedSearch])
+
+  const handleOpenSheet = async (rowId) => {
+    try {
+      const res = await api.get(`/api/data/source-link`, { params: { table: endpoint, row_id: rowId } })
+      if (res.data?.sheet_url) {
+        window.open(res.data.sheet_url, '_blank')
+      }
+    } catch {}
+  }
 
   const renderCell = (row, col, rowIdx) => {
     const val = row[col.key]
@@ -173,6 +182,7 @@ export default function DataTable({ endpoint, columns, defaultSort, defaultSortD
           <thead>
             <tr className={`border-b border-edge ${isDark ? 'bg-[#0F172A]' : 'bg-[#F8FAFC]'}`}>
               <th className="text-left py-3 px-4 font-medium text-content-muted w-12">#</th>
+              <th className="py-3 px-2 font-medium text-content-muted w-10"></th>
               {columns.map(col => (
                 <th key={col.key}
                   className={`text-left py-3 px-4 font-medium text-content-muted whitespace-nowrap ${col.sortable !== false ? 'cursor-pointer select-none hover:text-content' : ''}`}
@@ -193,18 +203,24 @@ export default function DataTable({ endpoint, columns, defaultSort, defaultSortD
           <tbody>
             {isLoading && rows.length === 0 ? (
               <tr>
-                <td colSpan={columns.length + 1} className="py-20 text-center">
+                <td colSpan={columns.length + 2} className="py-20 text-center">
                   <Loader2 className="w-6 h-6 text-blue-500 animate-spin mx-auto" />
                 </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={columns.length + 1} className="py-16 text-center text-content-muted">No records found</td>
+                <td colSpan={columns.length + 2} className="py-16 text-center text-content-muted">No records found</td>
               </tr>
             ) : rows.map((row, i) => (
               <tr key={row.id || i}
                 className={`border-b border-edge/50 hover:bg-surface-hover transition-colors ${i % 2 === 1 ? (isDark ? 'bg-[#0F172A]/30' : 'bg-[#F8FAFC]/50') : ''}`}>
                 <td className="py-3 px-4 text-content-faint text-xs">{fromRow + i}</td>
+                <td className="py-3 px-2">
+                  <button onClick={() => handleOpenSheet(row.id)} title="Open in Google Sheets"
+                    className="p-1 rounded hover:bg-surface-hover text-content-faint hover:text-green-400 transition-colors">
+                    <FileSpreadsheet className="w-4 h-4" />
+                  </button>
+                </td>
                 {columns.map(col => (
                   <td key={col.key} className="py-3 px-4 max-w-[300px]">
                     {renderCell(row, col, i)}

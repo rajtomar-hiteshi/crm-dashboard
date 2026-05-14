@@ -86,7 +86,7 @@ def get_positive_responses(
                 emp_quality[name]["positive_response"] += 1
 
         by_employee_stacked = []
-        for name in set(list(emp_data.keys()) | set(emp_quality.keys())):
+        for name in set(emp_data.keys()) | set(emp_quality.keys()):
             eq = emp_quality.get(name, {"high_quality": 0, "positive_response": 0, "generic_interest": 0})
             by_employee_stacked.append({
                 "employee": name, **eq,

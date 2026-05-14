@@ -127,6 +127,19 @@ def get_positive_responses(
 
         recent_responses = []
 
+    all_responses = [
+        {
+            "date": d.response_date.isoformat() if d.response_date else "",
+            "client_name": d.client_name or "",
+            "company": "",
+            "location": "",
+            "quality": d.response_quality or "Positive Response",
+            "employee": name,
+            "color": PERSON_COLORS.get(name, "#666"),
+        }
+        for d, name in detail_results
+    ]
+
     kpis = {
         "total": total_pr, "high_quality": hq_count,
         "generic_interest": gi_count, "best_rate_employee": best_rate_emp,
@@ -155,5 +168,5 @@ def get_positive_responses(
         "kpis": kpis, "by_employee_stacked": by_employee_stacked,
         "quality_distribution": quality_distribution,
         "monthly_trend": monthly_trend, "recent_responses": recent_responses,
-        "has_detail_data": has_detail_data,
+        "all_responses": all_responses, "has_detail_data": has_detail_data,
     }

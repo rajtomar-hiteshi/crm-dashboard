@@ -508,37 +508,28 @@ def run_incremental_sync(db: Session) -> dict:
             person_ids[p["full_name"]] = result.fetchone()[0]
             db.commit()
 
-    # 2. Connect to Drive and download CURRENT files (always re-download for freshness)
-    logger.info("Connecting to Google Drive...")
+    # 2. Connect to Drive and download CURRENT files only
+    current_files = [f for f in FILES if f["file_type"] == "CURRENT"]
+    logger.info(f"Connecting to Google Drive... ({len(current_files)} current files to sync)")
     service = get_drive_service()
 
     file_paths = {}
-    for f in FILES:
+    for f in current_files:
         safe_name = re.sub(r'[<>:"/\\|?*]', '_', f['name'])
         if not safe_name.endswith('.xlsx'):
             safe_name += '.xlsx'
         dest = DOWNLOAD_DIR / safe_name
-        if f["file_type"] == "CURRENT":
-            # Always re-download current files
-            logger.info(f"Downloading (current): {f['name'][:60]}...")
-            try:
-                download_file(service, f['drive_id'], str(dest))
-            except Exception as e:
-                logger.error(f"Failed to download {f['name']}: {e}")
-                continue
-        else:
-            if not dest.exists():
-                logger.info(f"Downloading (past): {f['name'][:60]}...")
-                try:
-                    download_file(service, f['drive_id'], str(dest))
-                except Exception as e:
-                    logger.error(f"Failed to download {f['name']}: {e}")
-                    continue
+        logger.info(f"Downloading (current): {f['name'][:60]}...")
+        try:
+            download_file(service, f['drive_id'], str(dest))
+        except Exception as e:
+            logger.error(f"Failed to download {f['name']}: {e}")
+            continue
         file_paths[f['drive_id']] = str(dest)
 
     # 3. Register / update source_files
     source_file_ids = {}
-    for f in FILES:
+    for f in current_files:
         if f['drive_id'] not in file_paths:
             continue
         pid = person_ids[f['person']]
@@ -563,8 +554,9 @@ def run_incremental_sync(db: Session) -> dict:
     total_skipped = 0
     files_synced = 0
     person_details = {}
+    tables_synced = {}
 
-    for f in FILES:
+    for f in current_files:
         if f['drive_id'] not in file_paths:
             continue
         path = file_paths[f['drive_id']]
@@ -689,6 +681,9 @@ def run_incremental_sync(db: Session) -> dict:
             if batch:
                 _batch_insert(db, target_table, cols, batch)
 
+            if ws_new > 0:
+                logger.info(f"  → {target_table}: +{ws_new} new rows from '{ws_name}' ({ws_skip} skipped)")
+                tables_synced[target_table] = tables_synced.get(target_table, 0) + ws_new
             total_new += ws_new
             total_skipped += ws_skip
             person_details[short_name]["worksheets_synced"] += 1
@@ -722,6 +717,7 @@ def run_incremental_sync(db: Session) -> dict:
         "files_synced": files_synced,
         "new_rows_added": total_new,
         "rows_skipped_already_exist": total_skipped,
+        "tables_synced": tables_synced,
         "details": sorted(person_details.values(), key=lambda d: d["person"]),
     }
 

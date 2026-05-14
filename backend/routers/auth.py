@@ -19,6 +19,45 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
+def send_reset_email(to_email: str, reset_link: str, user_name: str) -> bool:
+    smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
+    smtp_port = int(os.getenv("SMTP_PORT", "587"))
+    smtp_user = os.getenv("SMTP_USER", "")
+    smtp_pass = os.getenv("SMTP_PASSWORD", "")
+    from_email = os.getenv("SMTP_FROM_EMAIL", smtp_user)
+
+    if not smtp_user or not smtp_pass:
+        logger.warning(f"SMTP not configured. Reset link for {to_email}: {reset_link}")
+        return False
+
+    msg = MIMEMultipart()
+    msg["From"] = from_email
+    msg["To"] = to_email
+    msg["Subject"] = "Hiteshi CRM - Password Reset"
+
+    body_text = (
+        f"Hi {user_name},\n\n"
+        f"You requested a password reset. Click the link below:\n\n"
+        f"{reset_link}\n\n"
+        f"This link expires in 1 hour.\n\n"
+        f"If you did not request this, please ignore this email.\n\n"
+        f"- Hiteshi CRM Team"
+    )
+    msg.attach(MIMEText(body_text, "plain"))
+
+    try:
+        with smtplib.SMTP(smtp_host, smtp_port) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_pass)
+            server.send_message(msg)
+        logger.info(f"Password reset email sent to {to_email}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send reset email: {e}")
+        logger.info(f"Reset link for {to_email}: {reset_link}")
+        return False
+
+
 # ── Request / Response schemas ──────────────────────────────────────
 
 class LoginRequest(BaseModel):
@@ -77,39 +116,7 @@ def forgot_password(body: ForgotPasswordRequest, db: Session = Depends(get_db)):
         db.commit()
 
         reset_link = f"http://35.154.251.140/reset-password?token={reset_token}"
-
-        smtp_host = os.getenv("SMTP_HOST")
-        smtp_port = os.getenv("SMTP_PORT")
-        smtp_user = os.getenv("SMTP_USER")
-        smtp_password = os.getenv("SMTP_PASSWORD")
-
-        if smtp_host and smtp_port and smtp_user and smtp_password:
-            try:
-                msg = MIMEMultipart()
-                msg["From"] = smtp_user
-                msg["To"] = user.email
-                msg["Subject"] = "Lead Gen CRM - Password Reset"
-
-                body_text = (
-                    f"Hi {user.full_name},\n\n"
-                    f"You requested a password reset. Click the link below to reset your password:\n\n"
-                    f"{reset_link}\n\n"
-                    f"This link expires in 1 hour.\n\n"
-                    f"If you did not request this, please ignore this email."
-                )
-                msg.attach(MIMEText(body_text, "plain"))
-
-                with smtplib.SMTP(smtp_host, int(smtp_port)) as server:
-                    server.starttls()
-                    server.login(smtp_user, smtp_password)
-                    server.send_message(msg)
-
-                logger.info(f"Password reset email sent to {user.email}")
-            except Exception as e:
-                logger.error(f"Failed to send reset email: {e}")
-                logger.info(f"Password reset link for {user.email}: {reset_link}")
-        else:
-            logger.info(f"SMTP not configured. Password reset link for {user.email}: {reset_link}")
+        send_reset_email(user.email, reset_link, user.full_name)
 
     # Always return success to avoid revealing whether the email exists
     return {"message": "If that email is registered, a reset link has been sent."}

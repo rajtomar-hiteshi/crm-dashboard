@@ -10,7 +10,7 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, Query, HTTPException
 from fastapi.responses import StreamingResponse
-from sqlalchemy import desc as sa_desc, asc as sa_asc, or_, cast, Text as SAText
+from sqlalchemy import desc as sa_desc, asc as sa_asc, or_, cast, Text as SAText, func
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -77,11 +77,13 @@ TABLE_CONFIG = {
             "client_linkedin_id", "linkedin_id_associated", "connected_date",
             "first_follow_up", "num_follow_ups_taken", "num_gap_days",
             "response_quality", "client_first_revert", "chat_summary", "source",
+            "original_worksheet",
         ],
     },
     "leads-generated": {
         "model": LeadGenerated,
         "date_col": "inquiry_date",
+        "dedup_cols": ["person_id", "client_name", "company_name"],
         "columns": [
             "inquiry_date", "short_name", "client_name", "company_name",
             "client_location", "company_size", "client_designation",
@@ -114,7 +116,7 @@ TABLE_CONFIG = {
 def _build_query(db: Session, cfg: dict, person: str, date_from: str, date_to: str, search: str, period: str = None):
     """Build a filtered query with Person join."""
     Model = cfg["model"]
-    q = db.query(Model, Person.short_name).join(Person, Model.person_id == Person.id)
+    q = db.query(Model, Person.short_name).outerjoin(Person, Model.person_id == Person.id)
 
     if person and person != "all":
         try:
@@ -151,6 +153,12 @@ def _build_query(db: Session, cfg: dict, person: str, date_from: str, date_to: s
                 search_cols.append(cast(getattr(Model, col_name), SAText).ilike(f"%{search}%"))
         if search_cols:
             q = q.filter(or_(*search_cols))
+
+    dedup_cols = cfg.get("dedup_cols")
+    if dedup_cols:
+        dedup_exprs = [getattr(Model, c) for c in dedup_cols]
+        subq = db.query(func.min(Model.id)).group_by(*dedup_exprs).subquery()
+        q = q.filter(Model.id.in_(subq))
 
     return q
 

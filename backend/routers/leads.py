@@ -1,6 +1,7 @@
 import logging
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from database import get_db
 from models import TargetTracking, Person, LeadGenerated, PositiveResponse
@@ -26,8 +27,12 @@ def get_leads(
     base = apply_filters(base, TargetTracking.person_id, TargetTracking.activity_date, **fkw)
     results = base.all()
 
+    dedup_subq = db.query(func.min(LeadGenerated.id)).group_by(
+        LeadGenerated.person_id, LeadGenerated.client_name, LeadGenerated.company_name
+    ).subquery()
     lead_base = db.query(LeadGenerated, Person.short_name)\
-        .join(Person, LeadGenerated.person_id == Person.id)
+        .join(Person, LeadGenerated.person_id == Person.id)\
+        .filter(LeadGenerated.id.in_(dedup_subq))
     lead_base = apply_filters(lead_base, LeadGenerated.person_id, LeadGenerated.inquiry_date, **fkw)
     pipeline_results = lead_base.order_by(LeadGenerated.inquiry_date.desc()).all()
     has_pipeline_data = len(pipeline_results) > 0

@@ -8,6 +8,7 @@ import HorizontalBarChart from '../components/charts/HorizontalBarChart'
 import MultiLineChart from '../components/charts/MultiLineChart'
 import StackedAreaChart from '../components/charts/StackedAreaChart'
 import { fmtNum, fmtPct } from '../utils/formatters'
+import DataTable from '../components/DataTable'
 
 const EMPLOYEE_COLORS = {
   Yogita: '#3B82F6', Karishma: '#06B6D4', Ragini: '#10B981',
@@ -121,6 +122,23 @@ export default function FollowUps() {
           </table>
         </div>
       </div>
+
+      <DataTable
+        endpoint="linkedin-followups"
+        title="All Follow-Up Records"
+        defaultSort="activity_date"
+        columns={[
+          { key: 'activity_date', label: 'Date', sortable: true },
+          { key: 'short_name', label: 'Person', sortable: true },
+          { key: 'client_linkedin_url', label: 'Client LinkedIn URL', type: 'link', sortable: true },
+          { key: 'linkedin_account_used', label: 'Account Used', sortable: true },
+          { key: 'follow_up_type', label: 'Follow Up Type', sortable: true },
+          { key: 'message_sent', label: 'Message Sent', type: 'longtext', sortable: false },
+          { key: 'filter_value', label: 'Filter', sortable: true },
+          { key: 'cadence', label: 'Cadence', sortable: true },
+          { key: 'response_received', label: 'Response', sortable: true },
+        ]}
+      />
 
       <DrillDownDrawer
         isOpen={drillDown.open}

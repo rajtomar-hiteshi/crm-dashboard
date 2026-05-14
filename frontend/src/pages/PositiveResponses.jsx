@@ -8,6 +8,7 @@ import VerticalBarChart from '../components/charts/VerticalBarChart'
 import DonutChart from '../components/charts/DonutChart'
 import MultiLineChart from '../components/charts/MultiLineChart'
 import { fmtNum, fmtPct, fmtDate } from '../utils/formatters'
+import DataTable from '../components/DataTable'
 
 export default function PositiveResponses() {
   const { setEmployee } = useFilters()
@@ -124,6 +125,28 @@ export default function PositiveResponses() {
           </table>
         </div>
       </div>
+
+      <DataTable
+        endpoint="positive-responses"
+        title="All Positive Responses"
+        defaultSort="response_date"
+        columns={[
+          { key: 'response_date', label: 'Response Date', sortable: true },
+          { key: 'short_name', label: 'Person', sortable: true },
+          { key: 'client_type', label: 'Client Type', sortable: true },
+          { key: 'client_name', label: 'Client Name', sortable: true },
+          { key: 'client_linkedin_id', label: 'Client LinkedIn ID', type: 'link', sortable: true },
+          { key: 'linkedin_id_associated', label: 'LinkedIn ID Associated', sortable: true },
+          { key: 'connected_date', label: 'Connected Date', sortable: true },
+          { key: 'first_follow_up', label: 'First Follow Up', sortable: true },
+          { key: 'num_follow_ups_taken', label: 'Follow Ups Taken', sortable: true },
+          { key: 'num_gap_days', label: 'Gap Days', sortable: true },
+          { key: 'response_quality', label: 'Response Quality', type: 'badge', sortable: true },
+          { key: 'client_first_revert', label: 'Client First Revert', type: 'longtext', sortable: false },
+          { key: 'chat_summary', label: 'Chat Summary', type: 'longtext', sortable: false },
+          { key: 'source', label: 'Source', sortable: true },
+        ]}
+      />
 
       <DrillDownDrawer
         isOpen={drillDown.open}

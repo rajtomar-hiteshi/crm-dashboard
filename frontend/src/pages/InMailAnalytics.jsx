@@ -7,6 +7,7 @@ import DrillDownDrawer from '../components/DrillDownDrawer'
 import DonutChart from '../components/charts/DonutChart'
 import StackedBarChart from '../components/charts/StackedBarChart'
 import { fmtNum, fmtPct } from '../utils/formatters'
+import DataTable from '../components/DataTable'
 
 const EMPLOYEE_COLORS = {
   Yogita: '#3B82F6', Karishma: '#06B6D4', Ragini: '#10B981',
@@ -107,6 +108,24 @@ export default function InMailAnalytics() {
           </table>
         </div>
       </div>
+
+      <DataTable
+        endpoint="linkedin-inmails"
+        title="All InMail Records"
+        defaultSort="activity_date"
+        columns={[
+          { key: 'activity_date', label: 'Date', sortable: true },
+          { key: 'short_name', label: 'Person', sortable: true },
+          { key: 'client_linkedin_url', label: 'Client LinkedIn URL', type: 'link', sortable: true },
+          { key: 'linkedin_account_used', label: 'Account Used', sortable: true },
+          { key: 'inmail_message_sent', label: 'InMail Message', type: 'longtext', sortable: false },
+          { key: 'geography', label: 'Geography', sortable: true },
+          { key: 'company_size', label: 'Company Size', sortable: true },
+          { key: 'industry', label: 'Industry', sortable: true },
+          { key: 'filter_value', label: 'Filter', sortable: true },
+          { key: 'cadence', label: 'Cadence', sortable: true },
+        ]}
+      />
 
       <DrillDownDrawer
         isOpen={drillDown.open}

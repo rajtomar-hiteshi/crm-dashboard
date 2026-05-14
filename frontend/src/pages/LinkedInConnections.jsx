@@ -8,6 +8,7 @@ import HorizontalBarChart from '../components/charts/HorizontalBarChart'
 import MultiLineChart from '../components/charts/MultiLineChart'
 import StackedBarChart from '../components/charts/StackedBarChart'
 import { fmtNum } from '../utils/formatters'
+import DataTable from '../components/DataTable'
 
 const EMPLOYEE_COLORS = {
   Yogita: '#3B82F6', Karishma: '#06B6D4', Ragini: '#10B981',
@@ -115,6 +116,27 @@ export default function LinkedInConnections() {
           </table>
         </div>
       </div>
+
+      <DataTable
+        endpoint="linkedin-connections"
+        title="All LinkedIn Connections"
+        defaultSort="activity_date"
+        columns={[
+          { key: 'activity_date', label: 'Date', sortable: true },
+          { key: 'short_name', label: 'Person', sortable: true },
+          { key: 'client_linkedin_url', label: 'Client LinkedIn URL', type: 'link', sortable: true },
+          { key: 'linkedin_account_used', label: 'Account Used', sortable: true },
+          { key: 'connection_message', label: 'Connection Message', type: 'longtext', sortable: false },
+          { key: 'geography', label: 'Geography', sortable: true },
+          { key: 'company_size', label: 'Company Size', sortable: true },
+          { key: 'industry', label: 'Industry', sortable: true },
+          { key: 'cadence_sequence', label: 'Cadence', sortable: true },
+          { key: 'accepted', label: 'Accepted', sortable: true },
+          { key: 'filter_link', label: 'Filter Link', sortable: false },
+          { key: 'response_received', label: 'Response', sortable: true },
+          { key: 'comments', label: 'Comments', type: 'longtext', sortable: false },
+        ]}
+      />
 
       <DrillDownDrawer
         isOpen={drillDown.open}

@@ -5,7 +5,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import dashboard, connections, followups, inmails, positive_responses, leads, activity, sync, drilldown, daily_activity, settings
+from routers import dashboard, connections, followups, inmails, positive_responses, leads, activity, sync, drilldown, daily_activity, settings, data
 from routers import auth as auth_router
 
 app = FastAPI(title="Lead Gen CRM API", version="2.0.0")
@@ -29,6 +29,7 @@ app.include_router(sync.router, prefix="/api")
 app.include_router(drilldown.router, prefix="/api")
 app.include_router(daily_activity.router, prefix="/api")
 app.include_router(settings.router, prefix="/api")
+app.include_router(data.router, prefix="/api")
 app.include_router(auth_router.router, prefix="/api")
 
 

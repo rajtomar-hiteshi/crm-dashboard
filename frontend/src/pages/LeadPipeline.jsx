@@ -8,6 +8,7 @@ import VerticalBarChart from '../components/charts/VerticalBarChart'
 import HorizontalBarChart from '../components/charts/HorizontalBarChart'
 import MultiLineChart from '../components/charts/MultiLineChart'
 import { fmtNum, fmtPct, fmtDate } from '../utils/formatters'
+import DataTable from '../components/DataTable'
 
 export default function LeadPipeline() {
   const { employee, setEmployee } = useFilters()
@@ -185,6 +186,29 @@ export default function LeadPipeline() {
           </table>
         </div>
       </div>
+
+      <DataTable
+        endpoint="leads-generated"
+        title="All Lead Records"
+        defaultSort="inquiry_date"
+        columns={[
+          { key: 'inquiry_date', label: 'Inquiry Date', sortable: true },
+          { key: 'short_name', label: 'Person', sortable: true },
+          { key: 'client_name', label: 'Client Name', sortable: true },
+          { key: 'company_name', label: 'Company', sortable: true },
+          { key: 'client_location', label: 'Location', sortable: true },
+          { key: 'company_size', label: 'Company Size', sortable: true },
+          { key: 'client_designation', label: 'Designation', sortable: true },
+          { key: 'client_linkedin_url', label: 'LinkedIn URL', type: 'link', sortable: true },
+          { key: 'client_email', label: 'Email', type: 'email', sortable: true },
+          { key: 'client_contact_number', label: 'Phone', type: 'phone', sortable: true },
+          { key: 'summary', label: 'Summary', type: 'longtext', sortable: false },
+          { key: 'next_step', label: 'Next Step', type: 'longtext', sortable: false },
+          { key: 'lead_source', label: 'Lead Source', sortable: true },
+          { key: 'account', label: 'Account', sortable: true },
+          { key: 'current_status', label: 'Status', type: 'badge', sortable: true },
+        ]}
+      />
 
       <DrillDownDrawer
         isOpen={drillDown.open}

@@ -180,7 +180,10 @@ def search_drive(body: dict, db: Session = Depends(get_db)):
     queries.append(f"name contains 'Lead Generation' and name contains '{parts[0]}'")
     if len(parts) > 1:
         queries.append(f"name contains '{parts[0]}' and name contains '{parts[1]}'")
+        for p in parts:
+            queries.append(f"name contains '{p}'")
     queries.append(f"name contains '{name}'")
+    queries.append(f"name contains '{parts[0]}'")
 
     seen_ids = set()
     files = []
@@ -301,27 +304,34 @@ def scan_file(body: dict, db: Session = Depends(get_db)):
     drive_file_id = extract_file_id(raw_id)
 
     try:
-        file_name, worksheets = _scan_via_gspread(drive_file_id)
+        drive = _get_drive_service()
+        file_meta = drive.files().get(fileId=drive_file_id, fields="mimeType,name").execute()
     except Exception as e:
         err = str(e)
-        if "404" in err or "not found" in err.lower():
+        if "404" in err or "notFound" in err or "not found" in err.lower():
             raise HTTPException(
                 status_code=404,
-                detail=f"File not found. Please share the Google Sheet with: {SERVICE_ACCOUNT_EMAIL}",
+                detail=f"File not found. Please share the file with: {SERVICE_ACCOUNT_EMAIL}",
             )
-        if "Office file" in err or "not supported" in err.lower():
-            try:
-                file_name, worksheets = _scan_via_drive_download(drive_file_id)
-            except Exception as e2:
-                err2 = str(e2)
-                if "404" in err2 or "not found" in err2.lower():
-                    raise HTTPException(
-                        status_code=404,
-                        detail=f"File not found. Please share the file with: {SERVICE_ACCOUNT_EMAIL}",
-                    )
-                raise HTTPException(status_code=400, detail=f"Could not read file: {err2}")
-        else:
-            raise HTTPException(status_code=400, detail=f"Could not open file: {err}")
+        raise HTTPException(status_code=400, detail=f"Google Drive error: {err}")
+
+    mime_type = file_meta.get("mimeType", "")
+    is_native_sheet = mime_type == "application/vnd.google-apps.spreadsheet"
+
+    file_name = None
+    worksheets = None
+
+    if is_native_sheet:
+        try:
+            file_name, worksheets = _scan_via_gspread(drive_file_id)
+        except Exception as e:
+            logger.warning(f"gspread scan failed, falling back to download: {e}")
+
+    if worksheets is None:
+        try:
+            file_name, worksheets = _scan_via_drive_download(drive_file_id)
+        except Exception as e2:
+            raise HTTPException(status_code=400, detail=f"Could not read file: {e2}")
 
     total_rows = sum(ws["rows"] for ws in worksheets)
 
@@ -862,25 +872,17 @@ def add_file_to_person(person_id: int, body: dict, db: Session = Depends(get_db)
         raise HTTPException(status_code=400, detail="drive_file_id is required")
 
     try:
-        gc = _get_gspread_client()
-        spreadsheet = gc.open_by_key(drive_file_id)
-        file_name = spreadsheet.title
+        drive = _get_drive_service()
+        meta = drive.files().get(fileId=drive_file_id, fields="name").execute()
+        file_name = meta.get("name", drive_file_id)
     except Exception as e:
         err = str(e)
-        if "404" in err or "not found" in err.lower():
+        if "404" in err or "notFound" in err or "not found" in err.lower():
             raise HTTPException(
                 status_code=404,
                 detail=f"File not found. Please share the file with: {SERVICE_ACCOUNT_EMAIL}",
             )
-        if "Office file" in err or "not supported" in err.lower():
-            try:
-                drive = _get_drive_service()
-                meta = drive.files().get(fileId=drive_file_id, fields="name").execute()
-                file_name = meta.get("name", drive_file_id)
-            except Exception as e2:
-                raise HTTPException(status_code=400, detail=f"Could not read file metadata: {str(e2)}")
-        else:
-            raise HTTPException(status_code=400, detail=f"Could not open file: {err}")
+        raise HTTPException(status_code=400, detail=f"Could not access file: {err}")
 
     sf = SourceFile(
         person_id=person_id, file_name=file_name,

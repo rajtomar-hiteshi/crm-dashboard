@@ -162,22 +162,23 @@ function AddPersonWizard({ onClose, onComplete }) {
       <h3 className="text-lg font-bold text-content">Step 1: Person Details</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-content-muted mb-1">Full Name *</label>
+          <label className="block text-sm font-medium text-content-muted mb-1">Person's Full Name *</label>
           <input
             type="text" value={personForm.full_name}
             onChange={e => setPersonForm(p => ({ ...p, full_name: e.target.value }))}
-            placeholder="e.g. Priya Sharma"
+            placeholder="e.g. Umair Raizan"
             className="w-full px-3 py-2.5 bg-surface border border-edge rounded-lg text-sm text-content placeholder:text-content-faint focus:outline-none focus:border-blue-500/50"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-content-muted mb-1">Short Name / Nickname</label>
+          <label className="block text-sm font-medium text-content-muted mb-1">Display Name / Nickname</label>
           <input
             type="text" value={personForm.short_name}
             onChange={e => setPersonForm(p => ({ ...p, short_name: e.target.value }))}
-            placeholder="e.g. Priya"
+            placeholder="e.g. Umair"
             className="w-full px-3 py-2.5 bg-surface border border-edge rounded-lg text-sm text-content placeholder:text-content-faint focus:outline-none focus:border-blue-500/50"
           />
+          <p className="text-xs text-content-faint mt-1">Shown in charts, cards & filters. Full Name appears in tables & details.</p>
         </div>
         <div>
           <label className="block text-sm font-medium text-content-muted mb-1">Email</label>

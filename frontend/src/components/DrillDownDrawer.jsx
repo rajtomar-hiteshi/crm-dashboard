@@ -498,7 +498,7 @@ export default function DrillDownDrawer({ isOpen, onClose, metric, title, color 
                            <span>{row[col.key]}</span>
                          </div>
                        ) : (
-                         <span className="truncate block max-w-[200px]" title={row[col.key]}>{row[col.key] || '-'}</span>
+                         <span className={`truncate block max-w-[200px] ${!row[col.key] ? 'opacity-50' : ''}`} title={row[col.key]}>{row[col.key] || 'N/A'}</span>
                        )}
                     </td>
                   ))}

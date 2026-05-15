@@ -110,7 +110,7 @@ export default function PositiveResponses() {
                 return (
                   <tr key={i} className="border-b border-edge/50 hover:bg-surface-hover">
                     <td className="py-3 px-4 text-content-muted">{fmtDate(row.date)}</td>
-                    <td className="py-3 px-4 text-content">{row.client_name || '-'}</td>
+                    <td className="py-3 px-4 text-content">{row.client_name || <span className="text-content-faint opacity-50">N/A</span>}</td>
                     <td className="py-3 px-4">
                       <span className={`text-xs px-2 py-1 rounded-full ${badge.bg} ${badge.text}`}>{badge.label}</span>
                     </td>

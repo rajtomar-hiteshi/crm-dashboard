@@ -567,6 +567,8 @@ def _process_file(db, service, sf_row, person_row, incremental=True):
                     mapped[raw_col] = raw_str
                 else:
                     mapped[raw_col] = None
+                if mapped.get(date_col) is None:
+                    continue
 
             mapped['person_id'] = person_id
             mapped['source_file_id'] = sf_id
@@ -738,6 +740,80 @@ def run_reingest_past_files(db: Session) -> dict:
 
     finished = datetime.utcnow()
     logger.info(f"PAST re-ingestion complete: {total_new} rows inserted from {files_processed} files")
+
+    return {
+        "status": "success",
+        "synced_at": finished.isoformat() + "Z",
+        "duration_seconds": round((finished - started).total_seconds(), 1),
+        "files_processed": files_processed,
+        "total_rows_inserted": total_new,
+        "tables_synced": tables_synced,
+        "details": sorted(person_details.values(), key=lambda d: d["person"]),
+    }
+
+
+def run_reingest_current_files(db: Session) -> dict:
+    """Delete current file data and re-ingest from Google Sheets."""
+    started = datetime.utcnow()
+    logger.info("CURRENT files re-ingestion started")
+
+    current_files = db.execute(
+        text("""SELECT sf.id, sf.person_id, sf.file_name, sf.drive_file_id, sf.file_type,
+                       p.full_name, p.short_name
+                FROM source_files sf
+                JOIN persons p ON p.id = sf.person_id
+                WHERE sf.file_type = 'CURRENT'
+                ORDER BY p.full_name""")
+    ).fetchall()
+
+    if not current_files:
+        return {"status": "success", "message": "No CURRENT files found", "files_processed": 0}
+
+    sf_ids = [row[0] for row in current_files]
+    logger.info(f"Found {len(current_files)} CURRENT files — deleting old data for sf_ids={sf_ids}")
+
+    tables_to_clean = [
+        'target_tracking', 'linkedin_connections', 'linkedin_followups',
+        'linkedin_inmails', 'emails', 'data_extraction_records',
+        'positive_responses', 'leads_generated', 'other_worksheet_data',
+    ]
+    for tbl in tables_to_clean:
+        db.execute(text(f"DELETE FROM {tbl} WHERE source_file_id = ANY(:ids)"), {"ids": sf_ids})
+    db.execute(text("DELETE FROM ingestion_log WHERE source_file_id = ANY(:ids)"), {"ids": sf_ids})
+    db.commit()
+    logger.info("Old CURRENT data deleted")
+
+    service = get_drive_service()
+    total_new = 0
+    files_processed = 0
+    person_details = {}
+    tables_synced = {}
+
+    for row in current_files:
+        class SF:
+            id = row[0]; person_id = row[1]; file_name = row[2]; drive_file_id = row[3]
+        class PR:
+            id = row[1]; full_name = row[5]; short_name = row[6]
+
+        short = PR.short_name or PR.full_name.split()[0]
+        logger.info(f"Re-ingesting CURRENT: {PR.full_name} — {SF.file_name}")
+
+        new, _, status, tables = _process_file(db, service, SF(), PR(), incremental=False)
+
+        if short not in person_details:
+            person_details[short] = {"person": PR.full_name, "new_rows": 0, "status": "success"}
+        person_details[short]["new_rows"] += new
+        if status == "error":
+            person_details[short]["status"] = "error"
+
+        for t, c in tables.items():
+            tables_synced[t] = tables_synced.get(t, 0) + c
+
+        total_new += new
+        files_processed += 1
+
+    finished = datetime.utcnow()
+    logger.info(f"CURRENT re-ingestion complete: {total_new} rows from {files_processed} files")
 
     return {
         "status": "success",

@@ -81,7 +81,7 @@ export default function DataTable({ endpoint, columns, defaultSort, defaultSortD
 
   const renderCell = (row, col, rowIdx) => {
     const val = row[col.key]
-    if (val == null || val === '') return <span className="text-content-faint">-</span>
+    if (val == null || val === '') return <span className="text-content-faint opacity-50">N/A</span>
 
     const cellId = `${rowIdx}-${col.key}`
 

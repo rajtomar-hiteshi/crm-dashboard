@@ -309,8 +309,8 @@ function DrillDownPanel({ isOpen, onClose, personId, personName, activityType, d
                           {col.key.includes('date')
                             ? fmtDate(row[col.key])
                             : col.key.includes('url') || col.key.includes('linkedin')
-                              ? <span className="text-blue-400 truncate block max-w-[220px]" title={row[col.key]}>{row[col.key] || '-'}</span>
-                              : <span className="truncate block max-w-[200px]" title={row[col.key]}>{row[col.key] || '-'}</span>
+                              ? <span className={`text-blue-400 truncate block max-w-[220px] ${!row[col.key] ? 'opacity-50 !text-content-faint' : ''}`} title={row[col.key]}>{row[col.key] || 'N/A'}</span>
+                              : <span className={`truncate block max-w-[200px] ${!row[col.key] ? 'opacity-50 text-content-faint' : ''}`} title={row[col.key]}>{row[col.key] || 'N/A'}</span>
                           }
                         </td>
                       ))}
@@ -558,7 +558,7 @@ export default function DailyActivity() {
   }
 
   const renderCellValue = (value, key, personId, personName) => {
-    if (value === null || value === undefined) return <span className="text-content-faint">&mdash;</span>
+    if (value === null || value === undefined) return <span className="text-content-faint opacity-50">N/A</span>
     const colorClass = getCellColor(value, key, targets)
     return (
       <button
@@ -767,7 +767,7 @@ export default function DailyActivity() {
                     <span className="text-sm text-content-muted">{a.label}</span>
                   </div>
                   <span className={`text-sm font-semibold px-2 py-0.5 rounded ${colorClass || 'text-content'}`}>
-                    {val !== null && val !== undefined ? fmtNum(val) : '—'}
+                    {val !== null && val !== undefined ? fmtNum(val) : <span className="opacity-50">N/A</span>}
                     {!isSingleDay && row[`avg_${a.key}`] != null && (
                       <span className="text-[10px] text-content-faint ml-1">({row[`avg_${a.key}`]}/d)</span>
                     )}

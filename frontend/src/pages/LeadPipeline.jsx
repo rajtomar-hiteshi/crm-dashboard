@@ -179,9 +179,9 @@ export default function LeadPipeline() {
               {all_leads.length > 0 ? all_leads.map((lead, i) => (
                 <tr key={i} className="border-b border-edge/50 hover:bg-surface-hover">
                   <td className="py-3 px-4 text-content-muted">{fmtDate(lead.date)}</td>
-                  <td className="py-3 px-4 text-content">{lead.client_name || '-'}</td>
-                  <td className="py-3 px-4 text-content">{lead.company || '-'}</td>
-                  <td className="py-3 px-4 text-content-muted">{lead.location || '-'}</td>
+                  <td className="py-3 px-4 text-content">{lead.client_name || <span className="text-content-faint opacity-50">N/A</span>}</td>
+                  <td className="py-3 px-4 text-content">{lead.company || <span className="text-content-faint opacity-50">N/A</span>}</td>
+                  <td className="py-3 px-4 text-content-muted">{lead.location || <span className="text-content-faint opacity-50">N/A</span>}</td>
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full" style={{ backgroundColor: lead.color }} />

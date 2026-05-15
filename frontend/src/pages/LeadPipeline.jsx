@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Target, Percent, Globe, Crown, Loader2, Sparkles, AlertCircle } from 'lucide-react'
+import { Target, Percent, Globe, Crown, Loader2, AlertCircle } from 'lucide-react'
 import { useLeads } from '../hooks/useApi'
 import { useFilters } from '../context/FilterContext'
 import KPICard from '../components/KPICard'
@@ -18,32 +18,6 @@ export default function LeadPipeline() {
   const handleDrillDown = (metric, title, color) => {
     setDrillDown({ open: true, metric, title, color })
   }
-
-  const insights = useMemo(() => {
-    if (!data) return []
-    const lines = []
-    const { kpis, conversion_by_employee, geography, by_employee } = data
-
-    if (kpis.top_generator && kpis.top_generator !== 'N/A') {
-      const topEmp = by_employee.find(e => e.employee === kpis.top_generator)
-      if (topEmp) lines.push(`${kpis.top_generator} leads the team with ${fmtNum(topEmp.leads)} leads generated.`)
-    }
-    if (kpis.conversion_rate > 0) {
-      lines.push(`Team conversion rate stands at ${fmtPct(kpis.conversion_rate)} from connections to leads.`)
-    }
-    const bestConv = conversion_by_employee.reduce((best, e) =>
-      e.conversion_rate > (best?.conversion_rate || 0) ? e : best, null)
-    if (bestConv && bestConv.conversion_rate > 0) {
-      lines.push(`${bestConv.employee} has the highest conversion rate at ${fmtPct(bestConv.conversion_rate)}.`)
-    }
-    if (geography.length > 0) {
-      lines.push(`Leads span ${kpis.unique_geographies} geographies, with ${geography[0].location} being the top source.`)
-    }
-    if (kpis.total_leads > 0) {
-      lines.push(`Total pipeline: ${fmtNum(kpis.total_leads)} qualified leads across the team.`)
-    }
-    return lines
-  }, [data])
 
   if (isLoading && !data) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 text-blue-500 animate-spin" /></div>
@@ -112,23 +86,6 @@ export default function LeadPipeline() {
         </div>
 
         <div className="space-y-6">
-          <div className="bg-surface-card border border-edge rounded-xl p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <Sparkles className="w-4 h-4 text-yellow-400" />
-              <h3 className="text-base font-semibold text-content">AI Insights</h3>
-            </div>
-            {insights.length > 0 ? (
-              <div className="space-y-3">
-                {insights.map((line, i) => (
-                  <div key={i} className="flex gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-blue-400 mt-2 flex-shrink-0" />
-                    <p className="text-sm text-content-muted leading-relaxed">{line}</p>
-                  </div>
-                ))}
-              </div>
-            ) : <p className="text-content-muted text-sm">No insights available</p>}
-          </div>
-
           <div className="bg-surface-card border border-edge rounded-xl p-5">
             <h3 className="text-base font-semibold text-content mb-4">Conversion Rate</h3>
             <div className="space-y-3">

@@ -39,6 +39,18 @@ def run_sync(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/sync/reingest-past")
+def reingest_past(db: Session = Depends(get_db)):
+    try:
+        from services.sync_service import run_reingest_past_files
+        result = run_reingest_past_files(db)
+        return result
+    except Exception as e:
+        logger.exception("PAST re-ingestion failed")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/employees")
 def get_employees(db: Session = Depends(get_db)):
     persons = db.query(Person).order_by(Person.full_name).all()

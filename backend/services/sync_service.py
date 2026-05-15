@@ -21,36 +21,8 @@ CREDS_FILE = PROJECT_ROOT / "credentials.json"
 DOWNLOAD_DIR = PROJECT_ROOT / "drive_downloads"
 DOWNLOAD_DIR.mkdir(exist_ok=True)
 
-PERSONS = [
-    {"full_name": "Karishma Gurnani", "short_name": "Karishma"},
-    {"full_name": "Ragini Mahajan",   "short_name": "Ragini"},
-    {"full_name": "Yashika Medhe",    "short_name": "Yashika"},
-    {"full_name": "Yogita Thakur",    "short_name": "Yogita"},
-]
 
-FILES = [
-    {"person": "Karishma Gurnani", "drive_id": "13DQIF2A1Tgow0_PVw1IJMQ5XvzA_VeitbVbCN606noU",
-     "name": "[ Jan 2 - 21 april 2026 ] Lead Generation- Karishma Gurnani (2026)",
-     "file_type": "PAST", "period_start": "2026-01-02", "period_end": "2026-04-21"},
-    {"person": "Karishma Gurnani", "drive_id": "13S1qaUWgtuo1fAYpJIUxgG_YKrwnQe2tjlH8L3vAqTo",
-     "name": "[ 22 april 2026 - Current ] Lead Generation - Karishma (2026)",
-     "file_type": "CURRENT", "period_start": "2026-04-22", "period_end": None},
-    {"person": "Ragini Mahajan", "drive_id": "1Tl344h5Sn33cF5VlpZZmzP-a2bk1Bb7IN6-RBGTo_JM",
-     "name": "[ 12th jan 2026 - Current ] Lead Generation - Ragini Mahajan 2026",
-     "file_type": "CURRENT", "period_start": "2026-01-12", "period_end": None},
-    {"person": "Yashika Medhe", "drive_id": "1hf40HUOiqQG5Nk5ANrUlx1bbio4fuzQ-uF0MteZATbc",
-     "name": "[ January 2, 2025 - 30 August 2025 ] Lead Generation - LinkedIn - Daily Report Yashika",
-     "file_type": "PAST", "period_start": "2025-01-02", "period_end": "2025-08-30"},
-    {"person": "Yashika Medhe", "drive_id": "1DJRBExpAdYuQGX-Y_-IRGrEk5xT0ZVMDBQ8-D_YUAYs",
-     "name": "[April 4, 2026 - Current] Lead Generation - Yashika Medhe",
-     "file_type": "CURRENT", "period_start": "2026-04-04", "period_end": None},
-    {"person": "Yogita Thakur", "drive_id": "15wAch41nIISrgOWGxNb8oFEkqu3A1oWxWUXdykm4kb0",
-     "name": "[ 6 jan 2026 - 21 april ] Lead Generation - Yogita Thakur (2026)",
-     "file_type": "PAST", "period_start": "2026-01-06", "period_end": "2026-04-21"},
-    {"person": "Yogita Thakur", "drive_id": "1DZC1kUfZuvuA579_TMRyb7aCVDfe3hK1a5X_YVJbJkE",
-     "name": "[ 22 april 2026 - Current ] Lead Generation - Yogita",
-     "file_type": "CURRENT", "period_start": "2026-04-22", "period_end": None},
-]
+# No hardcoded persons/files — sync queries the database dynamically.
 
 # ── Dedup match columns per table ───────────────────
 MATCH_COLS = {
@@ -493,224 +465,211 @@ def make_fingerprint(mapped: dict, table: str, person_id: int, source_file_id: i
     return tuple(vals)
 
 
-# ── Main sync orchestrator ──────────────────────────
+# ── Core sync logic (shared by incremental + reingest) ──
+def _process_file(db, service, sf_row, person_row, incremental=True):
+    """Download and process a single source file. Returns (new_rows, skipped_rows, status)."""
+    person_id = person_row.id
+    sf_id = sf_row.id
+    person_name = person_row.full_name
+    short_name = person_row.short_name or person_name.split()[0]
+    drive_id = sf_row.drive_file_id
+
+    safe_name = re.sub(r'[<>:"/\\|?*]', '_', sf_row.file_name or drive_id)
+    if not safe_name.endswith('.xlsx'):
+        safe_name += '.xlsx'
+    dest = DOWNLOAD_DIR / safe_name
+
+    try:
+        download_file(service, drive_id, str(dest))
+    except Exception as e:
+        logger.error(f"Failed to download {sf_row.file_name}: {e}")
+        return 0, 0, "error", {}
+
+    try:
+        wb = openpyxl.load_workbook(str(dest), read_only=True, data_only=True)
+    except Exception as e:
+        logger.error(f"Error opening {dest}: {e}")
+        return 0, 0, "error", {}
+
+    db.execute(
+        text("UPDATE source_files SET total_worksheets = :tw, ingested_at = NOW() WHERE id = :sfid"),
+        {"tw": len(wb.sheetnames), "sfid": sf_id}
+    )
+
+    total_new = 0
+    total_skip = 0
+    tables_touched = {}
+
+    for ws_name in wb.sheetnames:
+        ws = wb[ws_name]
+        headers_raw, data_rows = read_worksheet_data(ws)
+        target_table = route_worksheet(ws_name)
+
+        if not data_rows:
+            continue
+
+        if is_single_column_tracker(headers_raw):
+            target_table = 'other_worksheet_data'
+
+        if target_table == 'other_worksheet_data':
+            existing_fps = load_existing_fingerprints(db, target_table, sf_id) if incremental else set()
+            ws_new = 0
+            for row_num, row in enumerate(data_rows, start=2):
+                if incremental:
+                    fp = (str(person_id), ws_name, str(row_num), str(sf_id))
+                    if fp in existing_fps:
+                        total_skip += 1
+                        continue
+                row_dict = {}
+                for i, val in enumerate(row):
+                    key = str(headers_raw[i]).strip() if i < len(headers_raw) and headers_raw[i] else f'col_{i}'
+                    if val is not None and str(val).strip():
+                        row_dict[key] = str(val).strip()
+                if row_dict:
+                    db.execute(
+                        text("INSERT INTO other_worksheet_data (person_id, source_file_id, original_worksheet, row_number, row_data) VALUES (:pid, :sfid, :ws, :rn, :rd)"),
+                        {"pid": person_id, "sfid": sf_id, "ws": ws_name, "rn": row_num, "rd": json.dumps(row_dict)}
+                    )
+                    ws_new += 1
+            total_new += ws_new
+            tables_touched['other_worksheet_data'] = tables_touched.get('other_worksheet_data', 0) + ws_new
+            if ws_new > 0:
+                db.commit()
+            continue
+
+        col_map = COLUMN_MAP_REGISTRY.get(target_table, {})
+        use_positional = is_ragini_leads_no_header(ws_name, person_name, headers_raw)
+        if use_positional:
+            data_rows = [list(headers_raw)] + data_rows
+
+        existing_fps = load_existing_fingerprints(db, target_table, sf_id) if incremental else set()
+        cols = TABLE_COLS[target_table]
+        date_col_info = DATE_COL.get(target_table)
+        ws_new = 0
+        batch = []
+
+        for row in data_rows:
+            if use_positional:
+                mapped = map_row_positional(row, RAGINI_LEADS_POSITIONAL)
+            else:
+                skip = TARGET_TRACKING_SKIP if target_table == 'target_tracking' else set()
+                mapped = map_row(headers_raw, row, col_map, skip_cols=skip)
+
+            if not mapped or all(v is None for v in mapped.values()):
+                continue
+
+            if date_col_info:
+                date_col, raw_col = date_col_info
+                raw_val = mapped.get(date_col)
+                if raw_val is not None:
+                    parsed_dt, raw_str = parse_date(raw_val)
+                    mapped[date_col] = str(parsed_dt) if parsed_dt else None
+                    mapped[raw_col] = raw_str
+                else:
+                    mapped[raw_col] = None
+
+            mapped['person_id'] = person_id
+            mapped['source_file_id'] = sf_id
+            mapped['original_worksheet'] = ws_name
+
+            if incremental:
+                fp = make_fingerprint(mapped, target_table, person_id, sf_id)
+                if fp in existing_fps:
+                    total_skip += 1
+                    continue
+                existing_fps.add(fp)
+
+            values = tuple(mapped.get(c) for c in cols)
+            batch.append(values)
+            ws_new += 1
+
+            if len(batch) >= 500:
+                _batch_insert(db, target_table, cols, batch)
+                batch = []
+
+        if batch:
+            _batch_insert(db, target_table, cols, batch)
+
+        if ws_new > 0:
+            logger.info(f"  → {target_table}: +{ws_new} new rows from '{ws_name}'")
+            tables_touched[target_table] = tables_touched.get(target_table, 0) + ws_new
+            db.commit()
+
+        total_new += ws_new
+
+        db.execute(
+            text("""INSERT INTO ingestion_log
+                    (source_file_id, person_id, worksheet_name, target_table,
+                     rows_in_sheet, rows_inserted, columns_in_sheet, columns_mapped, status, ingested_at)
+                    VALUES (:sfid, :pid, :ws, :tt, :ris, :ri, :cis, :cm, :st, NOW())"""),
+            {"sfid": sf_id, "pid": person_id, "ws": ws_name, "tt": target_table,
+             "ris": len(data_rows), "ri": ws_new, "cis": len(headers_raw),
+             "cm": len([h for h in headers_raw if norm(h) in col_map]), "st": "SUCCESS"}
+        )
+        db.commit()
+
+    wb.close()
+    return total_new, total_skip, "success", tables_touched
+
+
+# ── Main sync orchestrator (dynamic — queries DB) ──
 def run_incremental_sync(db: Session) -> dict:
     started = datetime.utcnow()
     logger.info("Incremental sync started")
 
-    # 1. Ensure persons exist
-    person_ids = {}
-    for p in PERSONS:
-        row = db.execute(
-            text("SELECT id FROM persons WHERE full_name = :fn"),
-            {"fn": p["full_name"]}
-        ).fetchone()
-        if row:
-            person_ids[p["full_name"]] = row[0]
-        else:
-            result = db.execute(
-                text("INSERT INTO persons (full_name, short_name) VALUES (:fn, :sn) RETURNING id"),
-                {"fn": p["full_name"], "sn": p["short_name"]}
-            )
-            person_ids[p["full_name"]] = result.fetchone()[0]
-            db.commit()
+    current_files = db.execute(
+        text("""SELECT sf.id, sf.person_id, sf.file_name, sf.drive_file_id, sf.file_type,
+                       p.full_name, p.short_name
+                FROM source_files sf
+                JOIN persons p ON p.id = sf.person_id
+                WHERE sf.file_type = 'CURRENT'
+                ORDER BY p.full_name""")
+    ).fetchall()
 
-    # 2. Connect to Drive and download CURRENT files only
-    current_files = [f for f in FILES if f["file_type"] == "CURRENT"]
-    logger.info(f"Connecting to Google Drive... ({len(current_files)} current files to sync)")
+    if not current_files:
+        return {"status": "success", "message": "No CURRENT files found to sync",
+                "new_rows_added": 0, "files_synced": 0, "details": []}
+
+    logger.info(f"Found {len(current_files)} CURRENT files to sync")
     service = get_drive_service()
 
-    file_paths = {}
-    for f in current_files:
-        safe_name = re.sub(r'[<>:"/\\|?*]', '_', f['name'])
-        if not safe_name.endswith('.xlsx'):
-            safe_name += '.xlsx'
-        dest = DOWNLOAD_DIR / safe_name
-        logger.info(f"Downloading (current): {f['name'][:60]}...")
-        try:
-            download_file(service, f['drive_id'], str(dest))
-        except Exception as e:
-            logger.error(f"Failed to download {f['name']}: {e}")
-            continue
-        file_paths[f['drive_id']] = str(dest)
-
-    # 3. Register / update source_files
-    source_file_ids = {}
-    for f in current_files:
-        if f['drive_id'] not in file_paths:
-            continue
-        pid = person_ids[f['person']]
-        row = db.execute(
-            text("SELECT id FROM source_files WHERE drive_file_id = :did"),
-            {"did": f['drive_id']}
-        ).fetchone()
-        if row:
-            source_file_ids[f['drive_id']] = row[0]
-        else:
-            result = db.execute(
-                text("""INSERT INTO source_files (person_id, file_name, drive_file_id, file_type, period_start, period_end)
-                        VALUES (:pid, :fn, :did, :ft, :ps, :pe) RETURNING id"""),
-                {"pid": pid, "fn": f['name'], "did": f['drive_id'], "ft": f['file_type'],
-                 "ps": f['period_start'], "pe": f['period_end']}
-            )
-            source_file_ids[f['drive_id']] = result.fetchone()[0]
-            db.commit()
-
-    # 4. Process each file
     total_new = 0
     total_skipped = 0
     files_synced = 0
     person_details = {}
     tables_synced = {}
 
-    for f in current_files:
-        if f['drive_id'] not in file_paths:
-            continue
-        path = file_paths[f['drive_id']]
-        person_name = f['person']
-        person_id = person_ids[person_name]
-        sf_id = source_file_ids[f['drive_id']]
-        short_name = next(p['short_name'] for p in PERSONS if p['full_name'] == person_name)
+    for row in current_files:
+        class SF:
+            id = row[0]; person_id = row[1]; file_name = row[2]; drive_file_id = row[3]
+        class PR:
+            id = row[1]; full_name = row[5]; short_name = row[6]
 
-        if short_name not in person_details:
-            person_details[short_name] = {
-                "person": person_name, "worksheets_synced": 0,
-                "new_rows": 0, "skipped": 0, "status": "success"
-            }
+        short = PR.short_name or PR.full_name.split()[0]
+        logger.info(f"Syncing: {PR.full_name} — {SF.file_name}")
 
-        try:
-            wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
-        except Exception as e:
-            logger.error(f"Error opening {path}: {e}")
-            person_details[short_name]["status"] = "error"
-            continue
+        new, skipped, status, tables = _process_file(db, service, SF(), PR(), incremental=True)
 
-        db.execute(
-            text("UPDATE source_files SET total_worksheets = :tw WHERE id = :sfid"),
-            {"tw": len(wb.sheetnames), "sfid": sf_id}
-        )
+        if short not in person_details:
+            person_details[short] = {"person": PR.full_name, "new_rows": 0, "skipped": 0, "status": "success"}
+        person_details[short]["new_rows"] += new
+        person_details[short]["skipped"] += skipped
+        if status == "error":
+            person_details[short]["status"] = "error"
 
-        for ws_name in wb.sheetnames:
-            ws = wb[ws_name]
-            headers_raw, data_rows = read_worksheet_data(ws)
-            target_table = route_worksheet(ws_name)
-            headers_norm = [norm(h) for h in headers_raw]
-            non_empty = [h for h in headers_norm if h]
+        for t, c in tables.items():
+            tables_synced[t] = tables_synced.get(t, 0) + c
 
-            if not data_rows:
-                continue
-
-            if is_single_column_tracker(headers_raw):
-                target_table = 'other_worksheet_data'
-
-            # ── other_worksheet_data (JSONB) ──
-            if target_table == 'other_worksheet_data':
-                existing_fps = load_existing_fingerprints(db, target_table, sf_id)
-                ws_new = 0
-                ws_skip = 0
-                for row_num, row in enumerate(data_rows, start=2):
-                    fp = (str(person_id), ws_name, str(row_num), str(sf_id))
-                    if fp in existing_fps:
-                        ws_skip += 1
-                        continue
-                    row_dict = {}
-                    for i, val in enumerate(row):
-                        key = str(headers_raw[i]).strip() if i < len(headers_raw) and headers_raw[i] else f'col_{i}'
-                        if val is not None and str(val).strip():
-                            row_dict[key] = str(val).strip()
-                    if row_dict:
-                        db.execute(
-                            text("INSERT INTO other_worksheet_data (person_id, source_file_id, original_worksheet, row_number, row_data) VALUES (:pid, :sfid, :ws, :rn, :rd)"),
-                            {"pid": person_id, "sfid": sf_id, "ws": ws_name, "rn": row_num, "rd": json.dumps(row_dict)}
-                        )
-                        ws_new += 1
-                total_new += ws_new
-                total_skipped += ws_skip
-                person_details[short_name]["worksheets_synced"] += 1
-                person_details[short_name]["new_rows"] += ws_new
-                person_details[short_name]["skipped"] += ws_skip
-                if ws_new > 0:
-                    db.commit()
-                continue
-
-            # ── Standard tables ──
-            col_map = COLUMN_MAP_REGISTRY.get(target_table, {})
-            use_positional = is_ragini_leads_no_header(ws_name, person_name, headers_raw)
-            if use_positional:
-                data_rows = [list(headers_raw)] + data_rows
-
-            existing_fps = load_existing_fingerprints(db, target_table, sf_id)
-            cols = TABLE_COLS[target_table]
-            date_col_info = DATE_COL.get(target_table)
-            ws_new = 0
-            ws_skip = 0
-            batch = []
-
-            for row in data_rows:
-                if use_positional:
-                    mapped = map_row_positional(row, RAGINI_LEADS_POSITIONAL)
-                else:
-                    skip = TARGET_TRACKING_SKIP if target_table == 'target_tracking' else set()
-                    mapped = map_row(headers_raw, row, col_map, skip_cols=skip)
-
-                if not mapped or all(v is None for v in mapped.values()):
-                    continue
-
-                # Parse dates
-                if date_col_info:
-                    date_col, raw_col = date_col_info
-                    raw_val = mapped.get(date_col)
-                    if raw_val is not None:
-                        parsed_dt, raw_str = parse_date(raw_val)
-                        mapped[date_col] = str(parsed_dt) if parsed_dt else None
-                        mapped[raw_col] = raw_str
-                    else:
-                        mapped[raw_col] = None
-
-                mapped['person_id'] = person_id
-                mapped['source_file_id'] = sf_id
-                mapped['original_worksheet'] = ws_name
-
-                fp = make_fingerprint(mapped, target_table, person_id, sf_id)
-                if fp in existing_fps:
-                    ws_skip += 1
-                    continue
-
-                existing_fps.add(fp)
-                values = tuple(mapped.get(c) for c in cols)
-                batch.append(values)
-                ws_new += 1
-
-                if len(batch) >= 500:
-                    _batch_insert(db, target_table, cols, batch)
-                    batch = []
-
-            if batch:
-                _batch_insert(db, target_table, cols, batch)
-
-            if ws_new > 0:
-                logger.info(f"  → {target_table}: +{ws_new} new rows from '{ws_name}' ({ws_skip} skipped)")
-                tables_synced[target_table] = tables_synced.get(target_table, 0) + ws_new
-            total_new += ws_new
-            total_skipped += ws_skip
-            person_details[short_name]["worksheets_synced"] += 1
-            person_details[short_name]["new_rows"] += ws_new
-            person_details[short_name]["skipped"] += ws_skip
-            if ws_new > 0:
-                db.commit()
-
-        wb.close()
+        total_new += new
+        total_skipped += skipped
         files_synced += 1
 
-    # 5. Write ingestion log entry for this sync
     db.execute(
         text("""INSERT INTO ingestion_log
                 (source_file_id, person_id, worksheet_name, target_table,
-                 rows_in_sheet, rows_inserted, columns_in_sheet, columns_mapped, status)
-                VALUES (:sfid, :pid, :ws, :tt, :ris, :ri, :cis, :cm, :st)"""),
-        {"sfid": None, "pid": None, "ws": "INCREMENTAL_SYNC",
-         "tt": "all", "ris": total_new + total_skipped,
-         "ri": total_new, "cis": 0, "cm": 0, "st": "SUCCESS"}
+                 rows_in_sheet, rows_inserted, columns_in_sheet, columns_mapped, status, ingested_at)
+                VALUES (NULL, NULL, 'INCREMENTAL_SYNC', 'all', :ris, :ri, 0, 0, 'SUCCESS', NOW())"""),
+        {"ris": total_new + total_skipped, "ri": total_new}
     )
     db.commit()
 
@@ -724,6 +683,68 @@ def run_incremental_sync(db: Session) -> dict:
         "files_synced": files_synced,
         "new_rows_added": total_new,
         "rows_skipped_already_exist": total_skipped,
+        "tables_synced": tables_synced,
+        "details": sorted(person_details.values(), key=lambda d: d["person"]),
+    }
+
+
+def run_reingest_past_files(db: Session) -> dict:
+    """Re-download and re-ingest ALL PAST files. Assumes old data was already deleted."""
+    started = datetime.utcnow()
+    logger.info("PAST files re-ingestion started")
+
+    past_files = db.execute(
+        text("""SELECT sf.id, sf.person_id, sf.file_name, sf.drive_file_id, sf.file_type,
+                       p.full_name, p.short_name
+                FROM source_files sf
+                JOIN persons p ON p.id = sf.person_id
+                WHERE sf.file_type = 'PAST'
+                ORDER BY p.full_name""")
+    ).fetchall()
+
+    if not past_files:
+        return {"status": "success", "message": "No PAST files found", "files_processed": 0}
+
+    logger.info(f"Found {len(past_files)} PAST files to re-ingest")
+    service = get_drive_service()
+
+    total_new = 0
+    files_processed = 0
+    person_details = {}
+    tables_synced = {}
+
+    for row in past_files:
+        class SF:
+            id = row[0]; person_id = row[1]; file_name = row[2]; drive_file_id = row[3]
+        class PR:
+            id = row[1]; full_name = row[5]; short_name = row[6]
+
+        short = PR.short_name or PR.full_name.split()[0]
+        logger.info(f"Re-ingesting PAST: {PR.full_name} — {SF.file_name}")
+
+        new, _, status, tables = _process_file(db, service, SF(), PR(), incremental=False)
+
+        if short not in person_details:
+            person_details[short] = {"person": PR.full_name, "new_rows": 0, "status": "success"}
+        person_details[short]["new_rows"] += new
+        if status == "error":
+            person_details[short]["status"] = "error"
+
+        for t, c in tables.items():
+            tables_synced[t] = tables_synced.get(t, 0) + c
+
+        total_new += new
+        files_processed += 1
+
+    finished = datetime.utcnow()
+    logger.info(f"PAST re-ingestion complete: {total_new} rows inserted from {files_processed} files")
+
+    return {
+        "status": "success",
+        "synced_at": finished.isoformat() + "Z",
+        "duration_seconds": round((finished - started).total_seconds(), 1),
+        "files_processed": files_processed,
+        "total_rows_inserted": total_new,
         "tables_synced": tables_synced,
         "details": sorted(person_details.values(), key=lambda d: d["person"]),
     }

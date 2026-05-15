@@ -1,13 +1,40 @@
-import { useState, useCallback } from 'react'
+import { useState, useMemo } from 'react'
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis,
-  CartesianGrid, Tooltip, Legend, Brush,
+  CartesianGrid, Tooltip, Legend,
 } from 'recharts'
-import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import { fmtNum, fmtChartDate } from '../../utils/formatters'
 
 const COLORS = ['#3B82F6', '#06B6D4', '#10B981', '#F59E0B', '#8B5CF6', '#EF4444', '#F97316']
+
+const RANGE_OPTIONS = [
+  { label: 'All Time', value: 'all' },
+  { label: 'Last 7 Days', value: '7d' },
+  { label: 'Last 30 Days', value: '30d' },
+  { label: 'This Month', value: 'this_month' },
+  { label: 'Last 3 Months', value: '3m' },
+  { label: 'This Year', value: 'this_year' },
+]
+
+function filterByRange(data, range, xKey) {
+  if (range === 'all' || !data.length) return data
+  const now = new Date()
+  let cutoff
+  if (range === '7d') cutoff = new Date(now.getTime() - 7 * 86400000)
+  else if (range === '30d') cutoff = new Date(now.getTime() - 30 * 86400000)
+  else if (range === 'this_month') cutoff = new Date(now.getFullYear(), now.getMonth(), 1)
+  else if (range === '3m') cutoff = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate())
+  else if (range === 'this_year') cutoff = new Date(now.getFullYear(), 0, 1)
+  else return data
+
+  return data.filter(d => {
+    const val = d[xKey]
+    if (!val) return false
+    const dt = new Date(val)
+    return dt >= cutoff
+  })
+}
 
 function getTickInterval(dataLength) {
   if (dataLength <= 7) return 0
@@ -17,38 +44,11 @@ function getTickInterval(dataLength) {
 }
 
 export default function StackedAreaChart({ data, areas, xKey = 'date', height = 300, zoomable = false }) {
-  const { chartColors } = useTheme()
-  const [brushStart, setBrushStart] = useState(0)
-  const [brushEnd, setBrushEnd] = useState(data.length - 1)
+  const { chartColors, isDark } = useTheme()
+  const [chartRange, setChartRange] = useState('all')
 
-  const handleBrushChange = useCallback((e) => {
-    if (e) {
-      setBrushStart(e.startIndex)
-      setBrushEnd(e.endIndex)
-    }
-  }, [])
-
-  const zoomIn = () => {
-    const range = brushEnd - brushStart
-    if (range <= 5) return
-    const mid = Math.floor((brushStart + brushEnd) / 2)
-    const half = Math.max(Math.floor(range / 4), 2)
-    setBrushStart(Math.max(0, mid - half))
-    setBrushEnd(Math.min(data.length - 1, mid + half))
-  }
-
-  const zoomOut = () => {
-    const range = brushEnd - brushStart
-    const mid = Math.floor((brushStart + brushEnd) / 2)
-    const half = Math.min(range, data.length)
-    setBrushStart(Math.max(0, mid - half))
-    setBrushEnd(Math.min(data.length - 1, mid + half))
-  }
-
-  const resetZoom = () => {
-    setBrushStart(0)
-    setBrushEnd(data.length - 1)
-  }
+  const filtered = useMemo(() => filterByRange(data, chartRange, xKey), [data, chartRange, xKey])
+  const tickInterval = xKey === 'date' ? getTickInterval(filtered.length) : 0
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (!active || !payload) return null
@@ -68,25 +68,29 @@ export default function StackedAreaChart({ data, areas, xKey = 'date', height = 
     )
   }
 
-  const tickInterval = xKey === 'date' ? getTickInterval(data.length) : 0
-
   return (
     <div>
       {zoomable && (
-        <div className="flex gap-1 mb-2 justify-end">
-          <button onClick={zoomIn} className="p-1.5 bg-surface-card border border-edge rounded-lg hover:bg-surface-hover transition-colors" title="Zoom In">
-            <ZoomIn className="w-4 h-4 text-content-muted" />
-          </button>
-          <button onClick={zoomOut} className="p-1.5 bg-surface-card border border-edge rounded-lg hover:bg-surface-hover transition-colors" title="Zoom Out">
-            <ZoomOut className="w-4 h-4 text-content-muted" />
-          </button>
-          <button onClick={resetZoom} className="p-1.5 bg-surface-card border border-edge rounded-lg hover:bg-surface-hover transition-colors" title="Reset Zoom">
-            <Maximize2 className="w-4 h-4 text-content-muted" />
-          </button>
+        <div className="flex gap-1.5 mb-3 justify-end flex-wrap">
+          {RANGE_OPTIONS.map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => setChartRange(opt.value)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-all ${
+                chartRange === opt.value
+                  ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
+                  : isDark
+                    ? 'bg-transparent text-gray-400 border-gray-700 hover:border-gray-500 hover:text-gray-300'
+                    : 'bg-transparent text-gray-500 border-gray-300 hover:border-gray-400 hover:text-gray-700'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
         </div>
       )}
-      <ResponsiveContainer width="100%" height={zoomable ? height + 40 : height}>
-        <AreaChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: zoomable ? 50 : 40 }}>
+      <ResponsiveContainer width="100%" height={height}>
+        <AreaChart data={filtered} margin={{ top: 5, right: 20, left: 0, bottom: 40 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} opacity={0.3} />
           <XAxis
             dataKey={xKey}
@@ -114,18 +118,6 @@ export default function StackedAreaChart({ data, areas, xKey = 'date', height = 
               fillOpacity={0.3}
             />
           ))}
-          {zoomable && data.length > 10 && (
-            <Brush
-              dataKey={xKey}
-              height={24}
-              stroke={chartColors.brushStroke}
-              fill={chartColors.brushFill}
-              startIndex={brushStart}
-              endIndex={brushEnd}
-              onChange={handleBrushChange}
-              tickFormatter={xKey === 'date' ? fmtChartDate : undefined}
-            />
-          )}
         </AreaChart>
       </ResponsiveContainer>
     </div>

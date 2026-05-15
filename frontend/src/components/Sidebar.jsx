@@ -30,7 +30,7 @@ export default function Sidebar({ onNavigate, currentPath }) {
     <aside className="w-[280px] h-screen bg-surface border-r border-edge flex flex-col flex-shrink-0">
       <div className="p-6 border-b border-edge">
         <div className="flex items-center gap-3">
-          <img src="/logo.png" alt="Hiteshi Infotech" className="w-9 h-9 rounded-xl object-contain" />
+          <img src="/logo_hiteshi.jfif" alt="Hiteshi Infotech" className="w-9 h-9 rounded-xl object-contain" />
           <div>
             <h1 className="text-lg font-bold text-content leading-tight">Hiteshi Infotech</h1>
             <p className="text-xs text-content-muted leading-tight">CRM Dashboard</p>

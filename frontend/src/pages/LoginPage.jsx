@@ -32,7 +32,7 @@ export default function LoginPage() {
     <div className={`min-h-screen flex items-center justify-center px-4 ${isDark ? 'bg-[#0F172A]' : 'bg-[#F1F5F9]'}`}>
       <div className="w-full max-w-md">
         <div className="flex items-center justify-center gap-3 mb-8">
-          <img src="/logo.png" alt="Hiteshi Infotech" className="w-12 h-12 rounded-xl object-contain" />
+          <img src="/logo_hiteshi.jfif" alt="Hiteshi Infotech" className="w-12 h-12 rounded-xl object-contain" />
           <div>
             <h1 className={`text-2xl font-bold leading-tight ${isDark ? 'text-white' : 'text-[#0F172A]'}`}>Hiteshi Infotech CRM</h1>
             <p className={`text-sm ${isDark ? 'text-[#94A3B8]' : 'text-[#64748B]'}`}>Dashboard</p>

@@ -774,7 +774,7 @@ def run_reingest_current_files(db: Session) -> dict:
 
     tables_to_clean = [
         'target_tracking', 'linkedin_connections', 'linkedin_followups',
-        'linkedin_inmails', 'emails', 'data_extraction_records',
+        'linkedin_inmails', 'emails', 'data_extraction',
         'positive_responses', 'leads_generated', 'other_worksheet_data',
     ]
     for tbl in tables_to_clean:

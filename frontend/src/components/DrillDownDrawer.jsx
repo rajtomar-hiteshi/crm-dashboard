@@ -315,9 +315,9 @@ export default function DrillDownDrawer({ isOpen, onClose, metric, title, color 
             <div className="overflow-x-auto max-h-96 overflow-y-auto">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-surface z-10">
-                  <tr className="text-content-muted border-b border-edge">
-                    <th className="text-left py-2 px-3 font-medium">Date</th>
-                    <th className="text-right py-2 px-3 font-medium">Value</th>
+                  <tr className="border-b border-edge">
+                    <th className="text-left py-2 px-3 font-semibold text-content">Date</th>
+                    <th className="text-right py-2 px-3 font-semibold text-content">Value</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -360,13 +360,13 @@ export default function DrillDownDrawer({ isOpen, onClose, metric, title, color 
           <h4 className="text-sm font-semibold text-content mb-3">Monthly Breakdown</h4>
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-content-muted border-b border-edge">
-                <th className="text-left py-2 px-3 font-medium">Month</th>
-                <th className="text-right py-2 px-3 font-medium">Value</th>
+              <tr className="border-b border-edge">
+                <th className="text-left py-2 px-3 font-semibold text-content">Month</th>
+                <th className="text-right py-2 px-3 font-semibold text-content">Value</th>
                 {data.monthly[0]?.responses !== undefined && (
                   <>
-                    <th className="text-right py-2 px-3 font-medium">Responses</th>
-                    <th className="text-right py-2 px-3 font-medium">Connections</th>
+                    <th className="text-right py-2 px-3 font-semibold text-content">Responses</th>
+                    <th className="text-right py-2 px-3 font-semibold text-content">Connections</th>
                   </>
                 )}
               </tr>
@@ -424,12 +424,12 @@ export default function DrillDownDrawer({ isOpen, onClose, metric, title, color 
           <h4 className="text-sm font-semibold text-content mb-3">Employee Details</h4>
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-content-muted border-b border-edge">
-                <th className="text-left py-2 px-3 font-medium">Employee</th>
-                <th className="text-right py-2 px-3 font-medium">Total</th>
-                <th className="text-right py-2 px-3 font-medium">Share</th>
-                <th className="text-right py-2 px-3 font-medium">Active Days</th>
-                <th className="text-right py-2 px-3 font-medium">Avg/Day</th>
+              <tr className="border-b border-edge">
+                <th className="text-left py-2 px-3 font-semibold text-content">Employee</th>
+                <th className="text-right py-2 px-3 font-semibold text-content">Total</th>
+                <th className="text-right py-2 px-3 font-semibold text-content">Share</th>
+                <th className="text-right py-2 px-3 font-semibold text-content">Active Days</th>
+                <th className="text-right py-2 px-3 font-semibold text-content">Avg/Day</th>
               </tr>
             </thead>
             <tbody>
@@ -480,9 +480,9 @@ export default function DrillDownDrawer({ isOpen, onClose, metric, title, color 
         <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
           <table className="w-full text-sm">
             <thead className="sticky top-0 bg-surface z-10">
-              <tr className="text-content-muted border-b border-edge">
+              <tr className="border-b border-edge">
                 {columns.map(col => (
-                  <th key={col.key} className="text-left py-2 px-3 font-medium">{col.label}</th>
+                  <th key={col.key} className="text-left py-2 px-3 font-semibold text-content">{col.label}</th>
                 ))}
               </tr>
             </thead>
@@ -490,15 +490,15 @@ export default function DrillDownDrawer({ isOpen, onClose, metric, title, color 
               {data.recent.map((row, i) => (
                 <tr key={i} className="border-b border-edge/30 hover:bg-surface-hover">
                   {columns.map(col => (
-                    <td key={col.key} className={`py-2 px-3 ${col.key === 'date' ? 'text-content-muted' : 'text-content'}`}>
-                      {col.key === 'date' ? fmtDate(row[col.key]) :
+                    <td key={col.key} className="py-2 px-3 text-content">
+                      {col.key === 'date' ? <span className="text-content-muted">{fmtDate(row[col.key])}</span> :
                        col.key === 'employee' ? (
                          <div className="flex items-center gap-2">
                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: row.color }} />
-                           <span>{row[col.key]}</span>
+                           <span className="font-medium">{row[col.key]}</span>
                          </div>
                        ) : (
-                         <span className={`truncate block max-w-[200px] ${!row[col.key] ? 'opacity-50' : ''}`} title={row[col.key]}>{row[col.key] || 'N/A'}</span>
+                         <span className={`truncate block max-w-[200px] ${!row[col.key] ? 'text-content-faint opacity-50' : 'text-content'}`} title={row[col.key]}>{row[col.key] || 'N/A'}</span>
                        )}
                     </td>
                   ))}

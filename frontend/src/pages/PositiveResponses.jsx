@@ -97,11 +97,11 @@ export default function PositiveResponses() {
         <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
           <table className="w-full text-sm">
             <thead className="sticky top-0 bg-surface-card z-10">
-              <tr className="text-content-muted border-b border-edge">
-                <th className="text-left py-3 px-4 font-medium">Date</th>
-                <th className="text-left py-3 px-4 font-medium">Client</th>
-                <th className="text-left py-3 px-4 font-medium">Quality</th>
-                <th className="text-left py-3 px-4 font-medium">Employee</th>
+              <tr className="border-b border-edge">
+                <th className="text-left py-3 px-4 font-semibold text-content">Date</th>
+                <th className="text-left py-3 px-4 font-semibold text-content">Client</th>
+                <th className="text-left py-3 px-4 font-semibold text-content">Quality</th>
+                <th className="text-left py-3 px-4 font-semibold text-content">Employee</th>
               </tr>
             </thead>
             <tbody>

@@ -30,9 +30,9 @@ export default function Sidebar({ onNavigate, currentPath }) {
     <aside className="w-[280px] h-screen bg-surface border-r border-edge flex flex-col flex-shrink-0">
       <div className="p-6 border-b border-edge">
         <div className="flex items-center gap-3">
-          <img src="/logo.svg" alt="Hiteshi" className="w-10 h-10 rounded-xl" />
+          <img src="/logo.png" alt="Hiteshi Infotech" className="w-9 h-9 rounded-xl object-contain" />
           <div>
-            <h1 className="text-lg font-bold text-content leading-tight">Hiteshi</h1>
+            <h1 className="text-lg font-bold text-content leading-tight">Hiteshi Infotech</h1>
             <p className="text-xs text-content-muted leading-tight">CRM Dashboard</p>
           </div>
         </div>
@@ -61,7 +61,7 @@ export default function Sidebar({ onNavigate, currentPath }) {
         </div>
       </nav>
       <div className="p-4 border-t border-edge">
-        <p className="text-xs text-content-faint text-center">Hiteshi CRM v1.0</p>
+        <p className="text-xs text-content-faint text-center">Hiteshi Infotech CRM v1.0</p>
       </div>
     </aside>
   )

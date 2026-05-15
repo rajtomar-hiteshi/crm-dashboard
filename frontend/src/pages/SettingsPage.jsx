@@ -370,11 +370,11 @@ function AddPersonWizard({ onClose, onComplete }) {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-surface text-content-muted border-b border-edge">
-                    <th className="text-left py-2 px-4 font-medium">Worksheet</th>
-                    <th className="text-right py-2 px-4 font-medium">Rows</th>
-                    <th className="text-left py-2 px-4 font-medium">Columns Found</th>
-                    <th className="text-left py-2 px-4 font-medium">Maps To</th>
+                  <tr className="bg-surface border-b border-edge">
+                    <th className="text-left py-2 px-4 font-semibold text-content">Worksheet</th>
+                    <th className="text-right py-2 px-4 font-semibold text-content">Rows</th>
+                    <th className="text-left py-2 px-4 font-semibold text-content">Columns Found</th>
+                    <th className="text-left py-2 px-4 font-semibold text-content">Maps To</th>
                   </tr>
                 </thead>
                 <tbody>

@@ -39,13 +39,16 @@ export default function KPICard({ title, value, subtitle, icon: Icon, color, cha
     if (hoverTimeout.current) clearTimeout(hoverTimeout.current)
   }
 
+  const hasDrillDown = onDrillDown && metric
+
   return (
     <div
       ref={ref}
-      className="kpi-card bg-surface-card border border-edge rounded-xl p-5 relative overflow-visible cursor-pointer"
+      className="kpi-card bg-surface-card border border-edge rounded-xl p-5 relative overflow-visible cursor-pointer group"
       onClick={handleCardClick}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
+      title={hasDrillDown ? 'Click for details' : undefined}
     >
       <div className="flex items-start justify-between mb-3">
         <div className="p-2.5 rounded-lg" style={{ backgroundColor: `${color}15` }}>
@@ -58,9 +61,9 @@ export default function KPICard({ title, value, subtitle, icon: Icon, color, cha
               {change}%
             </span>
           )}
-          {onDrillDown && metric && (
-            <span className="drill-down-arrow p-1 rounded-md">
-              <ChevronRight className="w-3.5 h-3.5 text-content-faint" />
+          {hasDrillDown && (
+            <span className="drill-down-arrow p-1.5 rounded-lg bg-blue-500/10 group-hover:bg-blue-500/20 transition-colors">
+              <ChevronRight className="w-5 h-5 text-blue-400" />
             </span>
           )}
         </div>
@@ -70,6 +73,9 @@ export default function KPICard({ title, value, subtitle, icon: Icon, color, cha
       </p>
       <p className="text-sm font-medium text-content-muted">{title}</p>
       {subtitle && <p className="text-xs text-content-faint mt-0.5">{subtitle}</p>}
+      {hasDrillDown && (
+        <p className="text-[11px] text-content-faint mt-1.5 group-hover:text-blue-400 transition-colors">Click to view details &rarr;</p>
+      )}
 
       {showPopover && details && details.length > 0 && (
         <div className="absolute top-full left-0 mt-2 z-50 w-56 bg-surface-card border border-edge rounded-xl p-3 shadow-xl popover-enter">

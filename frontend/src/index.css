@@ -62,14 +62,13 @@ body {
 }
 
 .kpi-card .drill-down-arrow {
-  opacity: 0;
-  transform: translateX(-4px);
+  opacity: 0.7;
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
 .kpi-card:hover .drill-down-arrow {
   opacity: 1;
-  transform: translateX(0);
+  transform: translateX(2px);
 }
 
 /* Drawer slide-in animation */

@@ -41,7 +41,7 @@ export default function ActivityTracker() {
           )}
         </div>
         <div className="bg-surface-card border border-edge rounded-xl p-5">
-          <h3 className="text-base font-semibold text-content mb-4">Monthly Channel Breakdown</h3>
+          <h3 className="text-base font-semibold text-content mb-4">Channel Breakdown</h3>
           {monthly_breakdown.length > 0 ? (
             <StackedBarChart
               data={monthly_breakdown}
@@ -82,15 +82,15 @@ export default function ActivityTracker() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-content-muted border-b border-edge">
-                <th className="text-left py-3 px-4 font-medium">Employee</th>
-                <th className="text-right py-3 px-4 font-medium">Active Days</th>
-                <th className="text-right py-3 px-4 font-medium">Connections</th>
-                <th className="text-right py-3 px-4 font-medium">Follow-Ups</th>
-                <th className="text-right py-3 px-4 font-medium">InMails</th>
-                <th className="text-right py-3 px-4 font-medium">Leads</th>
-                <th className="text-right py-3 px-4 font-medium">Avg/Day</th>
-                <th className="text-right py-3 px-4 font-medium">Efficiency</th>
+              <tr className="border-b border-edge">
+                <th className="text-left py-3 px-4 font-semibold text-content">Employee</th>
+                <th className="text-right py-3 px-4 font-semibold text-content">Active Days</th>
+                <th className="text-right py-3 px-4 font-semibold text-content">Connections</th>
+                <th className="text-right py-3 px-4 font-semibold text-content">Follow-Ups</th>
+                <th className="text-right py-3 px-4 font-semibold text-content">InMails</th>
+                <th className="text-right py-3 px-4 font-semibold text-content">Leads</th>
+                <th className="text-right py-3 px-4 font-semibold text-content">Avg/Day</th>
+                <th className="text-right py-3 px-4 font-semibold text-content">Efficiency</th>
               </tr>
             </thead>
             <tbody>

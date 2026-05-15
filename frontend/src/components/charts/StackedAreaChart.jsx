@@ -36,11 +36,27 @@ function filterByRange(data, range, xKey) {
   })
 }
 
-function getTickInterval(dataLength) {
-  if (dataLength <= 7) return 0
-  if (dataLength <= 14) return 1
-  if (dataLength <= 30) return Math.ceil(dataLength / 7) - 1
-  return Math.ceil(dataLength / 10) - 1
+function getSmartTickConfig(dataLength, range) {
+  if (range === '7d') return { interval: 0, formatter: fmtDayLabel }
+  if (range === '30d' || range === 'this_month') return { interval: Math.max(0, Math.ceil(dataLength / 7) - 1), formatter: fmtChartDate }
+  if (range === '3m') return { interval: Math.max(0, Math.ceil(dataLength / 10) - 1), formatter: fmtChartDate }
+  if (dataLength <= 14) return { interval: Math.max(0, Math.floor(dataLength / 7)), formatter: fmtChartDate }
+  return { interval: Math.max(0, Math.ceil(dataLength / 8) - 1), formatter: fmtMonthLabel }
+}
+
+function fmtDayLabel(s) {
+  if (!s) return ''
+  const d = new Date(s)
+  if (isNaN(d)) return s
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  return `${days[d.getDay()]} ${d.getDate()}`
+}
+
+function fmtMonthLabel(s) {
+  if (!s) return ''
+  const d = new Date(s)
+  if (isNaN(d)) return s
+  return d.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' })
 }
 
 export default function StackedAreaChart({ data, areas, xKey = 'date', height = 300, zoomable = false }) {
@@ -48,7 +64,7 @@ export default function StackedAreaChart({ data, areas, xKey = 'date', height = 
   const [chartRange, setChartRange] = useState('all')
 
   const filtered = useMemo(() => filterByRange(data, chartRange, xKey), [data, chartRange, xKey])
-  const tickInterval = xKey === 'date' ? getTickInterval(filtered.length) : 0
+  const tickConfig = xKey === 'date' ? getSmartTickConfig(filtered.length, chartRange) : { interval: 0, formatter: undefined }
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (!active || !payload) return null
@@ -90,15 +106,15 @@ export default function StackedAreaChart({ data, areas, xKey = 'date', height = 
         </div>
       )}
       <ResponsiveContainer width="100%" height={height}>
-        <AreaChart data={filtered} margin={{ top: 5, right: 20, left: 0, bottom: 40 }}>
+        <AreaChart data={filtered} margin={{ top: 5, right: 20, left: 0, bottom: 50 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} opacity={0.3} />
           <XAxis
             dataKey={xKey}
             stroke={chartColors.axis}
-            fontSize={11}
+            fontSize={10}
             tickLine={false}
-            tickFormatter={xKey === 'date' ? fmtChartDate : undefined}
-            interval={tickInterval}
+            tickFormatter={xKey === 'date' ? tickConfig.formatter : undefined}
+            interval={tickConfig.interval}
             angle={-45}
             textAnchor="end"
             dy={10}

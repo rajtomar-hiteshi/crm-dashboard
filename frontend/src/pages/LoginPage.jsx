@@ -32,9 +32,9 @@ export default function LoginPage() {
     <div className={`min-h-screen flex items-center justify-center px-4 ${isDark ? 'bg-[#0F172A]' : 'bg-[#F1F5F9]'}`}>
       <div className="w-full max-w-md">
         <div className="flex items-center justify-center gap-3 mb-8">
-          <img src="/logo.svg" alt="Hiteshi" className="w-12 h-12 rounded-xl" />
+          <img src="/logo.png" alt="Hiteshi Infotech" className="w-12 h-12 rounded-xl object-contain" />
           <div>
-            <h1 className={`text-2xl font-bold leading-tight ${isDark ? 'text-white' : 'text-[#0F172A]'}`}>Hiteshi CRM</h1>
+            <h1 className={`text-2xl font-bold leading-tight ${isDark ? 'text-white' : 'text-[#0F172A]'}`}>Hiteshi Infotech CRM</h1>
             <p className={`text-sm ${isDark ? 'text-[#94A3B8]' : 'text-[#64748B]'}`}>Dashboard</p>
           </div>
         </div>
@@ -112,7 +112,7 @@ export default function LoginPage() {
 
         </div>
 
-        <p className={`mt-6 text-center text-xs ${isDark ? 'text-[#475569]' : 'text-[#94A3B8]'}`}>Hiteshi CRM v1.0 &middot; Hiteshi Infotech</p>
+        <p className={`mt-6 text-center text-xs ${isDark ? 'text-[#475569]' : 'text-[#94A3B8]'}`}>Hiteshi Infotech CRM v1.0</p>
       </div>
     </div>
   )

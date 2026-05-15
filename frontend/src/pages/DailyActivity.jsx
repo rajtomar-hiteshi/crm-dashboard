@@ -293,10 +293,10 @@ function DrillDownPanel({ isOpen, onClose, personId, personName, activityType, d
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-[#0f172a] z-10">
-                  <tr className="text-content-muted border-b border-edge">
-                    <th className="text-left py-2 px-3 font-medium w-8">#</th>
+                  <tr className="border-b border-edge">
+                    <th className="text-left py-2 px-3 font-semibold text-content w-8">#</th>
                     {data.columns?.map(col => (
-                      <th key={col.key} className="text-left py-2 px-3 font-medium">{col.label}</th>
+                      <th key={col.key} className="text-left py-2 px-3 font-semibold text-content">{col.label}</th>
                     ))}
                   </tr>
                 </thead>
@@ -307,10 +307,10 @@ function DrillDownPanel({ isOpen, onClose, personId, personName, activityType, d
                       {data.columns?.map(col => (
                         <td key={col.key} className="py-2 px-3 text-content">
                           {col.key.includes('date')
-                            ? fmtDate(row[col.key])
+                            ? <span className="text-content-muted">{fmtDate(row[col.key])}</span>
                             : col.key.includes('url') || col.key.includes('linkedin')
-                              ? <span className={`text-blue-400 truncate block max-w-[220px] ${!row[col.key] ? 'opacity-50 !text-content-faint' : ''}`} title={row[col.key]}>{row[col.key] || 'N/A'}</span>
-                              : <span className={`truncate block max-w-[200px] ${!row[col.key] ? 'opacity-50 text-content-faint' : ''}`} title={row[col.key]}>{row[col.key] || 'N/A'}</span>
+                              ? <span className={`truncate block max-w-[220px] font-medium ${!row[col.key] ? 'opacity-50 text-content-faint' : 'text-blue-400 hover:text-blue-300'}`} title={row[col.key]}>{row[col.key] || 'N/A'}</span>
+                              : <span className={`truncate block max-w-[200px] ${!row[col.key] ? 'opacity-50 text-content-faint' : 'text-content'}`} title={row[col.key]}>{row[col.key] || 'N/A'}</span>
                           }
                         </td>
                       ))}

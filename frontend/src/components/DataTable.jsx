@@ -89,7 +89,7 @@ export default function DataTable({ endpoint, columns, defaultSort, defaultSortD
       const display = val.length > 40 ? val.slice(0, 40) + '...' : val
       return (
         <a href={val.startsWith('http') ? val : `https://${val}`} target="_blank" rel="noopener noreferrer"
-          className="text-blue-400 hover:text-blue-300 inline-flex items-center gap-1 max-w-[200px]">
+          className="text-blue-400 hover:text-blue-300 hover:underline inline-flex items-center gap-1 max-w-[200px] font-medium">
           <span className="truncate">{display}</span>
           <ExternalLink className="w-3 h-3 flex-shrink-0" />
         </a>
@@ -97,11 +97,11 @@ export default function DataTable({ endpoint, columns, defaultSort, defaultSortD
     }
 
     if (col.type === 'email' && val) {
-      return <a href={`mailto:${val}`} className="text-blue-400 hover:text-blue-300">{val}</a>
+      return <a href={`mailto:${val}`} className="text-blue-400 hover:text-blue-300 font-medium">{val}</a>
     }
 
     if (col.type === 'phone' && val) {
-      return <a href={`tel:${val}`} className="text-blue-400 hover:text-blue-300">{val}</a>
+      return <a href={`tel:${val}`} className="text-blue-400 hover:text-blue-300 font-medium">{val}</a>
     }
 
     if (col.type === 'badge' && val) {
@@ -129,7 +129,10 @@ export default function DataTable({ endpoint, columns, defaultSort, defaultSortD
       )
     }
 
-    return <span className="text-content-muted">{String(val)}</span>
+    if (typeof val === 'number' || (typeof val === 'string' && /^\d[\d,.]*$/.test(val.trim()))) {
+      return <span className="text-content font-semibold">{String(val)}</span>
+    }
+    return <span className="text-content">{String(val)}</span>
   }
 
   const fromRow = (page - 1) * pageSize + 1
@@ -181,11 +184,11 @@ export default function DataTable({ endpoint, columns, defaultSort, defaultSortD
         <table className="w-full text-sm">
           <thead>
             <tr className={`border-b border-edge ${isDark ? 'bg-[#0F172A]' : 'bg-[#F8FAFC]'}`}>
-              <th className="text-left py-3 px-4 font-medium text-content-muted w-12">#</th>
-              <th className="py-3 px-2 font-medium text-content-muted w-10"></th>
+              <th className="text-left py-3 px-4 font-semibold text-content w-12">#</th>
+              <th className="py-3 px-2 font-semibold text-content w-10"></th>
               {columns.map(col => (
                 <th key={col.key}
-                  className={`text-left py-3 px-4 font-medium text-content-muted whitespace-nowrap ${col.sortable !== false ? 'cursor-pointer select-none hover:text-content' : ''}`}
+                  className={`text-left py-3 px-4 font-semibold text-content whitespace-nowrap ${col.sortable !== false ? 'cursor-pointer select-none hover:text-blue-400' : ''}`}
                   style={col.width ? { minWidth: col.width } : undefined}
                   onClick={() => col.sortable !== false && handleSort(col.key)}>
                   <div className="flex items-center gap-1">

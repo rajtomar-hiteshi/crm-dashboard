@@ -80,13 +80,13 @@ export default function LinkedInConnections() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-content-muted border-b border-edge">
-                <th className="text-left py-3 px-4 font-medium">Employee</th>
-                <th className="text-right py-3 px-4 font-medium">Total</th>
-                <th className="text-right py-3 px-4 font-medium">Active Days</th>
-                <th className="text-right py-3 px-4 font-medium">Avg/Day</th>
-                <th className="text-right py-3 px-4 font-medium">Peak Day</th>
-                <th className="text-left py-3 px-4 font-medium">Share</th>
+              <tr className="border-b border-edge">
+                <th className="text-left py-3 px-4 font-semibold text-content">Employee</th>
+                <th className="text-right py-3 px-4 font-semibold text-content">Total</th>
+                <th className="text-right py-3 px-4 font-semibold text-content">Active Days</th>
+                <th className="text-right py-3 px-4 font-semibold text-content">Avg/Day</th>
+                <th className="text-right py-3 px-4 font-semibold text-content">Peak Day</th>
+                <th className="text-left py-3 px-4 font-semibold text-content">Share</th>
               </tr>
             </thead>
             <tbody>

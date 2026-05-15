@@ -19,9 +19,9 @@ export default function MonthDetailModal({ isOpen, onClose, title, data, columns
         <div className="overflow-auto p-4">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-content-muted border-b border-edge">
+              <tr className="border-b border-edge">
                 {columns.map(col => (
-                  <th key={col.key} className={`py-2 px-3 font-medium ${col.align === 'right' ? 'text-right' : 'text-left'}`}>
+                  <th key={col.key} className={`py-2 px-3 font-semibold text-content ${col.align === 'right' ? 'text-right' : 'text-left'}`}>
                     {col.label}
                   </th>
                 ))}

@@ -167,12 +167,12 @@ export default function LeadPipeline() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-content-muted border-b border-edge">
-                <th className="text-left py-3 px-4 font-medium">Date</th>
-                <th className="text-left py-3 px-4 font-medium">Client</th>
-                <th className="text-left py-3 px-4 font-medium">Company</th>
-                <th className="text-left py-3 px-4 font-medium">Location</th>
-                <th className="text-left py-3 px-4 font-medium">Employee</th>
+              <tr className="border-b border-edge">
+                <th className="text-left py-3 px-4 font-semibold text-content">Date</th>
+                <th className="text-left py-3 px-4 font-semibold text-content">Client</th>
+                <th className="text-left py-3 px-4 font-semibold text-content">Company</th>
+                <th className="text-left py-3 px-4 font-semibold text-content">Location</th>
+                <th className="text-left py-3 px-4 font-semibold text-content">Employee</th>
               </tr>
             </thead>
             <tbody>

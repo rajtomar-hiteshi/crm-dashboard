@@ -36,14 +36,9 @@ function filterByRange(data, range, xKey) {
   })
 }
 
-function getTickInterval(dataLength, range) {
-  if (range === '7d') return 0
-  if (range === '30d' || range === 'this_month') return 6
-  if (range === '3m') return 13
-  if (dataLength > 365) return 59
-  if (dataLength > 180) return 29
-  if (dataLength > 60) return 13
-  return 6
+function getTickInterval(dataLength) {
+  if (dataLength <= 10) return 0
+  return Math.ceil(dataLength / 8) - 1
 }
 
 function fmtDateLabel(s) {
@@ -58,7 +53,7 @@ export default function StackedAreaChart({ data, areas, xKey = 'date', height = 
   const [chartRange, setChartRange] = useState('all')
 
   const filtered = useMemo(() => filterByRange(data, chartRange, xKey), [data, chartRange, xKey])
-  const tickInterval = xKey === 'date' ? getTickInterval(filtered.length, chartRange) : 0
+  const tickInterval = xKey === 'date' ? getTickInterval(filtered.length) : 0
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (!active || !payload) return null

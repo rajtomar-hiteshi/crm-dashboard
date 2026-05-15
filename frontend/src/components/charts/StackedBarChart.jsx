@@ -54,6 +54,13 @@ export default function StackedBarChart({ data, bars, xKey = 'date', height = 30
   const dataKey = (drillQuarter || viewMode === 'monthly') ? xKey : 'period'
   const isDate = xKey === 'date'
 
+  const tickInterval = useMemo(() => {
+    if (!isDate) return 0
+    const len = chartData.length
+    if (len <= 10) return 0
+    return Math.ceil(len / 8) - 1
+  }, [isDate, chartData.length])
+
   const tickFormatter = useCallback((val) => {
     if (drillQuarter || viewMode === 'monthly') return fmtMonth(val)
     return val
@@ -145,7 +152,7 @@ export default function StackedBarChart({ data, bars, xKey = 'date', height = 30
             fontSize={11}
             tickLine={false}
             tickFormatter={isMonth ? tickFormatter : isDate ? fmtChartDate : undefined}
-            interval={0}
+            interval={tickInterval}
             {...(isDate ? { angle: -45, textAnchor: 'end', dy: 10 } : {})}
           />
           <YAxis stroke={chartColors.axis} fontSize={12} tickLine={false} />

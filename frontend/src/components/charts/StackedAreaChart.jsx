@@ -36,35 +36,29 @@ function filterByRange(data, range, xKey) {
   })
 }
 
-function getSmartTickConfig(dataLength, range) {
-  if (range === '7d') return { interval: 0, formatter: fmtDayLabel }
-  if (range === '30d' || range === 'this_month') return { interval: Math.max(0, Math.ceil(dataLength / 7) - 1), formatter: fmtChartDate }
-  if (range === '3m') return { interval: Math.max(0, Math.ceil(dataLength / 10) - 1), formatter: fmtChartDate }
-  if (dataLength <= 14) return { interval: Math.max(0, Math.floor(dataLength / 7)), formatter: fmtChartDate }
-  return { interval: Math.max(0, Math.ceil(dataLength / 8) - 1), formatter: fmtMonthLabel }
+function getTickInterval(dataLength, range) {
+  if (range === '7d') return 0
+  if (range === '30d' || range === 'this_month') return 6
+  if (range === '3m') return 13
+  if (dataLength > 365) return 59
+  if (dataLength > 180) return 29
+  if (dataLength > 60) return 13
+  return 6
 }
 
-function fmtDayLabel(s) {
+function fmtDateLabel(s) {
   if (!s) return ''
   const d = new Date(s)
   if (isNaN(d)) return s
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-  return `${days[d.getDay()]} ${d.getDate()}`
+  return `${d.getDate()} ${d.toLocaleString('en-GB', { month: 'short' })}`
 }
 
-function fmtMonthLabel(s) {
-  if (!s) return ''
-  const d = new Date(s)
-  if (isNaN(d)) return s
-  return d.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' })
-}
-
-export default function StackedAreaChart({ data, areas, xKey = 'date', height = 300, zoomable = false }) {
+export default function StackedAreaChart({ data, areas, xKey = 'date', height = 350, zoomable = false }) {
   const { chartColors, isDark } = useTheme()
   const [chartRange, setChartRange] = useState('all')
 
   const filtered = useMemo(() => filterByRange(data, chartRange, xKey), [data, chartRange, xKey])
-  const tickConfig = xKey === 'date' ? getSmartTickConfig(filtered.length, chartRange) : { interval: 0, formatter: undefined }
+  const tickInterval = xKey === 'date' ? getTickInterval(filtered.length, chartRange) : 0
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (!active || !payload) return null
@@ -106,22 +100,29 @@ export default function StackedAreaChart({ data, areas, xKey = 'date', height = 
         </div>
       )}
       <ResponsiveContainer width="100%" height={height}>
-        <AreaChart data={filtered} margin={{ top: 5, right: 20, left: 0, bottom: 50 }}>
+        <AreaChart data={filtered} margin={{ top: 10, right: 30, left: 0, bottom: 60 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} opacity={0.3} />
           <XAxis
             dataKey={xKey}
             stroke={chartColors.axis}
             fontSize={10}
             tickLine={false}
-            tickFormatter={xKey === 'date' ? tickConfig.formatter : undefined}
-            interval={tickConfig.interval}
+            tickFormatter={xKey === 'date' ? fmtDateLabel : undefined}
+            interval={tickInterval}
             angle={-45}
             textAnchor="end"
+            height={60}
             dy={10}
           />
           <YAxis stroke={chartColors.axis} fontSize={12} tickLine={false} />
           <Tooltip content={<CustomTooltip />} />
-          <Legend wrapperStyle={{ fontSize: 12, color: chartColors.axis }} iconType="circle" />
+          <Legend
+            verticalAlign="bottom"
+            height={36}
+            wrapperStyle={{ paddingTop: '15px', fontSize: '12px', lineHeight: '24px' }}
+            iconSize={10}
+            iconType="circle"
+          />
           {areas.map((area, i) => (
             <Area
               key={area.key}

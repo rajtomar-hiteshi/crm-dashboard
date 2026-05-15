@@ -60,7 +60,7 @@ export default function InMailAnalytics() {
           ) : <p className="text-content-muted text-sm text-center py-10">No data</p>}
         </div>
         <div className="bg-surface-card border border-edge rounded-xl p-5">
-          <h3 className="text-base font-semibold text-content mb-4">Monthly InMail Volume by Employee</h3>
+          <h3 className="text-base font-semibold text-content mb-4">InMail Volume by Employee</h3>
           {monthly_volume.length > 0 && monthlyBars.length > 0 ? (
             <StackedBarChart data={monthly_volume} xKey="month" bars={monthlyBars} />
           ) : <p className="text-content-muted text-sm text-center py-10">No data</p>}

@@ -61,7 +61,7 @@ export default function LinkedInConnections() {
           ) : <p className="text-content-muted text-sm text-center py-10">No data</p>}
         </div>
         <div className="bg-surface-card border border-edge rounded-xl p-5">
-          <h3 className="text-base font-semibold text-content mb-4">Monthly Connection Trend</h3>
+          <h3 className="text-base font-semibold text-content mb-4">Connection Trend</h3>
           {monthly_trend.length > 0 ? (
             <MultiLineChart data={monthly_trend} lines={[{ key: 'connections', name: 'Connections', color: '#3B82F6' }]} />
           ) : <p className="text-content-muted text-sm text-center py-10">No data</p>}

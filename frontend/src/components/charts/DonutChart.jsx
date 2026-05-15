@@ -61,9 +61,12 @@ export default function DonutChart({ data, nameKey = 'employee', dataKey = 'conn
         </Pie>
         <Tooltip content={<CustomTooltip />} />
         <Legend
-          wrapperStyle={{ fontSize: 12, color: chartColors.axis }}
+          verticalAlign="bottom"
+          height={36}
+          wrapperStyle={{ paddingTop: '15px', fontSize: '12px', lineHeight: '24px' }}
+          iconSize={10}
           iconType="circle"
-          formatter={(value) => <span style={{ color: chartColors.tooltipSec }}>{value}</span>}
+          formatter={(value) => <span style={{ color: chartColors.tooltipSec, marginRight: '8px' }}>{value}</span>}
         />
       </PieChart>
     </ResponsiveContainer>

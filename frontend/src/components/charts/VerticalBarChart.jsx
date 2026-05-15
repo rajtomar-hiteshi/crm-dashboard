@@ -36,7 +36,13 @@ export default function VerticalBarChart({ data, bars, xKey = 'employee', height
         <YAxis stroke={chartColors.axis} fontSize={12} tickLine={false} />
         <Tooltip content={<CustomTooltip />} />
         {bars.length > 1 && (
-          <Legend wrapperStyle={{ fontSize: 12, color: chartColors.axis }} iconType="circle" />
+          <Legend
+            verticalAlign="bottom"
+            height={36}
+            wrapperStyle={{ paddingTop: '15px', fontSize: '12px', lineHeight: '24px' }}
+            iconSize={10}
+            iconType="circle"
+          />
         )}
         {bars.map((bar) => (
           <Bar key={bar.key} dataKey={bar.key} name={bar.name || bar.key} fill={bar.color || '#3B82F6'} radius={[4, 4, 0, 0]} barSize={bar.barSize} onClick={handleClick} cursor={onBarClick ? 'pointer' : 'default'}>

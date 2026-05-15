@@ -75,7 +75,7 @@ export default function PositiveResponses() {
       </div>
 
       <div className="bg-surface-card border border-edge rounded-xl p-5">
-        <h3 className="text-base font-semibold text-content mb-4">Monthly Trend</h3>
+        <h3 className="text-base font-semibold text-content mb-4">Response Trend</h3>
         {monthly_trend.length > 0 ? (
           <MultiLineChart
             data={monthly_trend}

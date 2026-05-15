@@ -134,7 +134,7 @@ export default function StackedBarChart({ data, bars, xKey = 'date', height = 30
       <ResponsiveContainer width="100%" height={height}>
         <BarChart
           data={chartData}
-          margin={{ top: 5, right: 20, left: 0, bottom: isDate ? 50 : 10 }}
+          margin={{ top: 10, right: 20, left: 0, bottom: isDate ? 60 : 10 }}
           onClick={(e) => e?.activePayload?.[0]?.payload && handleBarClick(e.activePayload[0].payload)}
           style={isMonth && viewMode === 'quarterly' && !drillQuarter ? { cursor: 'pointer' } : undefined}
         >
@@ -150,7 +150,13 @@ export default function StackedBarChart({ data, bars, xKey = 'date', height = 30
           />
           <YAxis stroke={chartColors.axis} fontSize={12} tickLine={false} />
           <Tooltip content={<CustomTooltip />} />
-          <Legend wrapperStyle={{ fontSize: 12, color: chartColors.axis }} iconType="circle" />
+          <Legend
+            verticalAlign="bottom"
+            height={36}
+            wrapperStyle={{ paddingTop: '15px', fontSize: '12px', lineHeight: '24px' }}
+            iconSize={10}
+            iconType="circle"
+          />
           {bars.map((bar, i) => (
             <Bar
               key={bar.key}

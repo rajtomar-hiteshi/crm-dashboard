@@ -595,10 +595,23 @@ def apply_row_update(db, table, row_id, changes):
 
 def log_changes_to_db(db, changes, person_id, sf_id, table, row_id,
                       ws_name, row_date, within_deadline, change_type, sync_run_id):
-    """Insert one change_log row per changed column."""
+    """Insert one change_log row per changed column. Skips if identical rejected entry already exists."""
     deadline = compute_edit_deadline(row_date)
     applied = within_deadline and change_type in ('UPDATED', 'NEW_ROW')
     for col, old_val, new_val in changes:
+        # For rejected changes, check if we already logged this exact diff
+        # (since the DB keeps old values, the same diff shows up every sync)
+        if not applied and row_id is not None:
+            existing = db.execute(text("""
+                SELECT 1 FROM change_log
+                WHERE target_row_id = :rid AND column_name = :cn
+                  AND change_applied = false
+                  AND COALESCE(new_value, '') = COALESCE(:nv, '')
+                LIMIT 1
+            """), {"rid": row_id, "cn": col, "nv": new_val}).fetchone()
+            if existing:
+                continue  # already logged this exact rejected change
+
         db.execute(text("""
             INSERT INTO change_log
             (person_id, source_file_id, target_table, target_row_id,

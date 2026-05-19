@@ -8,7 +8,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import dashboard, connections, followups, inmails, positive_responses, leads, activity, sync, drilldown, daily_activity, settings, data
+from routers import dashboard, connections, followups, inmails, positive_responses, leads, activity, sync, drilldown, daily_activity, settings, data, change_tracking
 from routers import auth as auth_router
 
 app = FastAPI(title="Lead Gen CRM API", version="2.0.0")
@@ -34,16 +34,17 @@ app.include_router(daily_activity.router, prefix="/api")
 app.include_router(settings.router, prefix="/api")
 app.include_router(data.router, prefix="/api")
 app.include_router(auth_router.router, prefix="/api")
+app.include_router(change_tracking.router, prefix="/api")
 
 
 @app.on_event("startup")
 def seed_users():
     from database import Base, engine, SessionLocal
-    from models import User, WorksheetMapping
+    from models import User, WorksheetMapping, ChangeLog
     from auth import hash_password
     from datetime import datetime
 
-    Base.metadata.create_all(bind=engine, tables=[User.__table__, WorksheetMapping.__table__])
+    Base.metadata.create_all(bind=engine, tables=[User.__table__, WorksheetMapping.__table__, ChangeLog.__table__])
 
     seed_data = [
         {"email": "manoj@hiteshi.com", "full_name": "Manoj", "password": "ManoJ@CRM2026#"},

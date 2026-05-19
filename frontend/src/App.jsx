@@ -17,6 +17,7 @@ import PositiveResponses from './pages/PositiveResponses'
 import LeadPipeline from './pages/LeadPipeline'
 import DailyActivity from './pages/DailyActivity'
 import SettingsPage from './pages/SettingsPage'
+import ChangeTracking from './pages/ChangeTracking'
 import api from './api/api'
 
 const PAGE_CONFIG = {
@@ -28,6 +29,7 @@ const PAGE_CONFIG = {
   '/inmails': { title: 'InMail Analytics', subtitle: 'InMail volume and distribution insights' },
   '/positive-responses': { title: 'Positive Responses', subtitle: 'Response quality and conversion tracking' },
   '/leads': { title: 'Lead Pipeline', subtitle: 'Lead generation funnel and geography analysis' },
+  '/change-tracking': { title: 'Change Tracking', subtitle: 'Cell-level edit history with 24-hour deadline enforcement' },
   '/settings': { title: 'Settings', subtitle: 'Manage team members, targets, and system configuration' },
 }
 
@@ -81,6 +83,7 @@ function ProtectedLayout() {
             <Route path="/inmails" element={<InMailAnalytics />} />
             <Route path="/positive-responses" element={<PositiveResponses />} />
             <Route path="/leads" element={<LeadPipeline />} />
+            <Route path="/change-tracking" element={<ChangeTracking />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

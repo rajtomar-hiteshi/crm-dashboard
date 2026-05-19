@@ -2,6 +2,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Activity, Users, MessageSquare,
   Mail, TrendingUp, Target, ChevronRight, CalendarCheck, Settings,
+  GitCompareArrows,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -13,6 +14,7 @@ const NAV_ITEMS = [
   { path: '/inmails', label: 'InMail Analytics', icon: Mail },
   { path: '/positive-responses', label: 'Positive Responses', icon: TrendingUp },
   { path: '/leads', label: 'Lead Pipeline', icon: Target },
+  { path: '/change-tracking', label: 'Change Tracking', icon: GitCompareArrows },
   { path: '/settings', label: 'Settings', icon: Settings },
 ]
 

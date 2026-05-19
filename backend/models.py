@@ -311,6 +311,27 @@ class WorksheetMapping(Base):
     target_table = Column(Text, nullable=False)
 
 
+class ChangeLog(Base):
+    __tablename__ = "change_log"
+    id = Column(Integer, primary_key=True)
+    person_id = Column(Integer, ForeignKey("persons.id"), nullable=False)
+    source_file_id = Column(Integer, ForeignKey("source_files.id"), nullable=False)
+    target_table = Column(Text, nullable=False)
+    target_row_id = Column(Integer)
+    original_worksheet = Column(Text)
+    row_date = Column(Date)
+    column_name = Column(Text, nullable=False)
+    column_display = Column(Text)
+    old_value = Column(Text)
+    new_value = Column(Text)
+    change_type = Column(Text, nullable=False)  # 'UPDATED', 'NEW_ROW', 'REJECTED_UPDATE', 'REJECTED_NEW'
+    within_deadline = Column(Boolean, nullable=False)
+    change_applied = Column(Boolean, nullable=False)
+    deadline_at = Column(DateTime)
+    detected_at = Column(DateTime, nullable=False)
+    sync_run_id = Column(Text)
+
+
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True)

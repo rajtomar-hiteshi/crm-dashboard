@@ -1,9 +1,9 @@
 """
 Incremental sync service — downloads Google Sheets, compares with DB,
-inserts only NEW rows. Never deletes or updates existing data.
+inserts NEW rows and updates changed rows within a 24-hour edit window.
 """
-import os, re, json, logging, io
-from datetime import datetime, date
+import os, re, json, logging, io, uuid
+from datetime import datetime, date, timedelta
 from pathlib import Path
 
 import openpyxl
@@ -465,6 +465,154 @@ def make_fingerprint(mapped: dict, table: str, person_id: int, source_file_id: i
     return tuple(vals)
 
 
+# ── 24-hour edit deadline logic ────────────────────
+def compute_edit_deadline(row_date):
+    """
+    Mon-Thu data  → next day midnight IST
+    Friday data   → Monday midnight IST
+    Sat/Sun data  → Monday midnight IST
+    Returns a naive datetime in IST (UTC+5:30).
+    """
+    if not row_date:
+        return None
+    if isinstance(row_date, str):
+        try:
+            row_date = date.fromisoformat(row_date)
+        except ValueError:
+            return None
+    wd = row_date.weekday()  # Mon=0 … Sun=6
+    if wd == 4:        # Friday
+        delta = 3
+    elif wd == 5:      # Saturday
+        delta = 2
+    elif wd == 6:      # Sunday
+        delta = 1
+    else:              # Mon-Thu
+        delta = 1
+    deadline_date = row_date + timedelta(days=delta)
+    # Midnight IST of deadline_date = 18:30 UTC of (deadline_date - 1 day)
+    return datetime(deadline_date.year, deadline_date.month, deadline_date.day, 0, 0, 0)
+
+
+def is_within_deadline(row_date):
+    """Check if the current time (IST) is within the edit window for the given row date."""
+    deadline = compute_edit_deadline(row_date)
+    if not deadline:
+        return True  # if we can't compute deadline, allow it
+    # Approximate IST = UTC + 5:30
+    now_ist = datetime.utcnow() + timedelta(hours=5, minutes=30)
+    return now_ist <= deadline
+
+
+# ── Change detection helpers ──────────────────────
+SKIP_CHANGE_COLS = {'person_id', 'source_file_id', 'original_worksheet', 'created_at'}
+
+# Reverse lookup: DB column → human-readable display name
+_DISPLAY_NAME_CACHE = {}
+
+def _build_display_name_cache():
+    if _DISPLAY_NAME_CACHE:
+        return
+    for table, col_map in COLUMN_MAP_REGISTRY.items():
+        for header, db_col in col_map.items():
+            key = (table, db_col)
+            if key not in _DISPLAY_NAME_CACHE:
+                _DISPLAY_NAME_CACHE[key] = header.replace('_', ' ').title()
+    # Add common columns
+    for tbl in TABLE_COLS:
+        for col in ['activity_date', 'response_date', 'inquiry_date']:
+            _DISPLAY_NAME_CACHE[(tbl, col)] = col.replace('_', ' ').title()
+
+
+def get_display_name(db_col, table):
+    _build_display_name_cache()
+    return _DISPLAY_NAME_CACHE.get((table, db_col), db_col.replace('_', ' ').title())
+
+
+def load_existing_rows(db, table, source_file_id, cols):
+    """Load existing rows as {fingerprint: (row_id, {col: val})} for change detection."""
+    match_cols = MATCH_COLS.get(table)
+    if not match_cols:
+        return {}
+    all_cols = ['id'] + [c for c in cols if c != 'id']
+    col_expr = ', '.join(all_cols)
+    rows = db.execute(
+        text(f"SELECT {col_expr} FROM {table} WHERE source_file_id = :sfid"),
+        {"sfid": source_file_id}
+    ).fetchall()
+    result = {}
+    for row in rows:
+        row_dict = dict(zip(all_cols, row))
+        row_id = row_dict['id']
+        fp_vals = []
+        for col in match_cols:
+            fp_vals.append(_fingerprint_val(row_dict.get(col)))
+        fp = tuple(fp_vals)
+        result[fp] = (row_id, {c: row_dict[c] for c in cols})
+    return result
+
+
+def detect_changes(mapped, db_values, table):
+    """Compare mapped sheet row to DB row. Returns list of (col, old_val, new_val)."""
+    match = set(MATCH_COLS.get(table, []))
+    raw_cols = {c for c in mapped if c.endswith('_raw')}
+    skip = SKIP_CHANGE_COLS | match | raw_cols
+    changes = []
+    for col, new_val in mapped.items():
+        if col in skip:
+            continue
+        old_val = db_values.get(col)
+        old_str = str(old_val).strip() if old_val is not None else None
+        new_str = str(new_val).strip() if new_val is not None else None
+        # Treat empty string same as None
+        if not old_str:
+            old_str = None
+        if not new_str:
+            new_str = None
+        if old_str != new_str:
+            changes.append((col, old_str, new_str))
+    return changes
+
+
+def apply_row_update(db, table, row_id, changes):
+    """Apply column updates to an existing DB row."""
+    set_clauses = []
+    params = {"rid": row_id}
+    for i, (col, old_val, new_val) in enumerate(changes):
+        set_clauses.append(f"{col} = :v{i}")
+        params[f"v{i}"] = new_val
+    db.execute(text(f"UPDATE {table} SET {', '.join(set_clauses)} WHERE id = :rid"), params)
+
+
+def log_changes_to_db(db, changes, person_id, sf_id, table, row_id,
+                      ws_name, row_date, within_deadline, change_type, sync_run_id):
+    """Insert one change_log row per changed column."""
+    deadline = compute_edit_deadline(row_date)
+    applied = within_deadline and change_type in ('UPDATED', 'NEW_ROW')
+    for col, old_val, new_val in changes:
+        db.execute(text("""
+            INSERT INTO change_log
+            (person_id, source_file_id, target_table, target_row_id,
+             original_worksheet, row_date, column_name, column_display,
+             old_value, new_value, change_type, within_deadline, change_applied,
+             deadline_at, detected_at, sync_run_id)
+            VALUES (:pid, :sfid, :tt, :rid, :ws, :rd, :cn, :cd,
+                    :ov, :nv, :ct, :wd, :ca, :dl, NOW(), :sri)
+        """), {
+            "pid": person_id, "sfid": sf_id, "tt": table, "rid": row_id,
+            "ws": ws_name, "rd": str(row_date) if row_date else None,
+            "cn": col, "cd": get_display_name(col, table),
+            "ov": old_val, "nv": new_val, "ct": change_type,
+            "wd": within_deadline, "ca": applied,
+            "dl": deadline.isoformat() if deadline else None,
+            "sri": sync_run_id,
+        })
+
+
+# Tables that support change tracking (have structured date columns)
+CHANGE_TRACK_TABLES = set(DATE_COL.keys())
+
+
 # ── Core sync logic (shared by incremental + reingest) ──
 def _process_file(db, service, sf_row, person_row, incremental=True):
     """Download and process a single source file. Returns (new_rows, skipped_rows, status)."""
@@ -496,8 +644,11 @@ def _process_file(db, service, sf_row, person_row, incremental=True):
         {"tw": len(wb.sheetnames), "sfid": sf_id}
     )
 
+    sync_run_id = str(uuid.uuid4())[:8]
     total_new = 0
     total_skip = 0
+    total_updated = 0
+    total_rejected = 0
     tables_touched = {}
 
     for ws_name in wb.sheetnames:
@@ -542,22 +693,30 @@ def _process_file(db, service, sf_row, person_row, incremental=True):
         if use_positional:
             data_rows = [list(headers_raw)] + data_rows
 
-        existing_fps = load_existing_fingerprints(db, target_table, sf_id) if incremental else set()
+        # For change tracking: load full rows instead of just fingerprints
+        track_changes = incremental and target_table in CHANGE_TRACK_TABLES
+        if track_changes:
+            existing_rows = load_existing_rows(db, target_table, sf_id, TABLE_COLS[target_table])
+        else:
+            existing_fps = load_existing_fingerprints(db, target_table, sf_id) if incremental else set()
+
         cols = TABLE_COLS[target_table]
         date_col_info = DATE_COL.get(target_table)
         ws_new = 0
+        ws_updated = 0
         batch = []
 
         for row in data_rows:
             if use_positional:
                 mapped = map_row_positional(row, RAGINI_LEADS_POSITIONAL)
             else:
-                skip = TARGET_TRACKING_SKIP if target_table == 'target_tracking' else set()
-                mapped = map_row(headers_raw, row, col_map, skip_cols=skip)
+                skip_set = TARGET_TRACKING_SKIP if target_table == 'target_tracking' else set()
+                mapped = map_row(headers_raw, row, col_map, skip_cols=skip_set)
 
             if not mapped or all(v is None for v in mapped.values()):
                 continue
 
+            parsed_dt = None
             if date_col_info:
                 date_col, raw_col = date_col_info
                 raw_val = mapped.get(date_col)
@@ -580,10 +739,51 @@ def _process_file(db, service, sf_row, person_row, incremental=True):
 
             if incremental:
                 fp = make_fingerprint(mapped, target_table, person_id, sf_id)
-                if fp in existing_fps:
-                    total_skip += 1
+
+                if track_changes and fp in existing_rows:
+                    # ── Existing row found: check for changes ──
+                    row_data = existing_rows[fp]
+                    if row_data is None:
+                        total_skip += 1
+                        continue
+                    row_id, db_values = row_data
+                    changes = detect_changes(mapped, db_values, target_table)
+                    if changes:
+                        row_date = parsed_dt
+                        within = is_within_deadline(row_date)
+                        if within:
+                            apply_row_update(db, target_table, row_id, changes)
+                            log_changes_to_db(db, changes, person_id, sf_id, target_table,
+                                              row_id, ws_name, row_date, True, 'UPDATED', sync_run_id)
+                            ws_updated += 1
+                            total_updated += 1
+                        else:
+                            # Past deadline — log but do NOT apply
+                            log_changes_to_db(db, changes, person_id, sf_id, target_table,
+                                              row_id, ws_name, row_date, False, 'REJECTED_UPDATE', sync_run_id)
+                            total_rejected += 1
+                    else:
+                        total_skip += 1
+                    existing_rows[fp] = None  # mark as processed
                     continue
-                existing_fps.add(fp)
+
+                elif track_changes and fp not in existing_rows:
+                    # ── New row: enforce deadline for new inserts too ──
+                    if parsed_dt and not is_within_deadline(parsed_dt):
+                        # Log as rejected new row
+                        log_changes_to_db(
+                            db, [('_new_row', None, 'New row added after deadline')],
+                            person_id, sf_id, target_table, None, ws_name,
+                            parsed_dt, False, 'REJECTED_NEW', sync_run_id)
+                        total_rejected += 1
+                        continue
+                    existing_rows[fp] = None  # mark as seen
+
+                elif not track_changes:
+                    if fp in existing_fps:
+                        total_skip += 1
+                        continue
+                    existing_fps.add(fp)
 
             values = tuple(mapped.get(c) for c in cols)
             batch.append(values)
@@ -596,8 +796,13 @@ def _process_file(db, service, sf_row, person_row, incremental=True):
         if batch:
             _batch_insert(db, target_table, cols, batch)
 
-        if ws_new > 0:
-            logger.info(f"  → {target_table}: +{ws_new} new rows from '{ws_name}'")
+        if ws_new > 0 or ws_updated > 0:
+            msg_parts = []
+            if ws_new > 0:
+                msg_parts.append(f"+{ws_new} new")
+            if ws_updated > 0:
+                msg_parts.append(f"~{ws_updated} updated")
+            logger.info(f"  → {target_table}: {', '.join(msg_parts)} from '{ws_name}'")
             tables_touched[target_table] = tables_touched.get(target_table, 0) + ws_new
             db.commit()
 

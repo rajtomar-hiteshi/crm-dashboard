@@ -563,6 +563,10 @@ def _process_file(db, service, sf_row, person_row, incremental=True):
                 raw_val = mapped.get(date_col)
                 if raw_val is not None:
                     parsed_dt, raw_str = parse_date(raw_val)
+                    # Skip rows with future dates (beyond today)
+                    if parsed_dt and parsed_dt > date.today():
+                        total_skip += 1
+                        continue
                     mapped[date_col] = str(parsed_dt) if parsed_dt else None
                     mapped[raw_col] = raw_str
                 else:

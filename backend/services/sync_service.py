@@ -552,6 +552,17 @@ def load_existing_rows(db, table, source_file_id, cols):
     return result
 
 
+def _normalize_for_compare(s):
+    """Normalize a string for comparison — collapse whitespace, strip edges."""
+    if s is None:
+        return None
+    s = str(s).strip()
+    if not s:
+        return None
+    # Collapse all whitespace runs (newlines, tabs, multiple spaces) to single space
+    return re.sub(r'\s+', ' ', s)
+
+
 def detect_changes(mapped, db_values, table):
     """Compare mapped sheet row to DB row. Returns list of (col, old_val, new_val)."""
     match = set(MATCH_COLS.get(table, []))
@@ -562,15 +573,13 @@ def detect_changes(mapped, db_values, table):
         if col in skip:
             continue
         old_val = db_values.get(col)
-        old_str = str(old_val).strip() if old_val is not None else None
-        new_str = str(new_val).strip() if new_val is not None else None
-        # Treat empty string same as None
-        if not old_str:
-            old_str = None
-        if not new_str:
-            new_str = None
-        if old_str != new_str:
-            changes.append((col, old_str, new_str))
+        old_norm = _normalize_for_compare(old_val)
+        new_norm = _normalize_for_compare(new_val)
+        if old_norm != new_norm:
+            # Store original (readable) values in log, not normalized
+            old_display = str(old_val).strip() if old_val is not None else None
+            new_display = str(new_val).strip() if new_val is not None else None
+            changes.append((col, old_display, new_display))
     return changes
 
 
